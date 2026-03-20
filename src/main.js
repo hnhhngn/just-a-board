@@ -5,9 +5,10 @@ import { initObjectEvents } from './objects.js';
 import { clearGrid } from './grid.js';
 import { CommandManager } from './commands/CommandManager.js';
 import { serialize, deserialize } from './storage/BoardSerializer.js';
-import { getBoardIndex, createBoard, deleteBoard, saveBoardData, loadBoardData, migrateIfNeeded } from './storage/LocalAdapter.js';
+import { getBoardIndex, createBoard, deleteBoard, saveBoardData, loadBoardData, migrateIfNeeded, renameBoard } from './storage/LocalAdapter.js';
 import { initFloatingToolbar } from './hud/FloatingToolbar.js';
 import { initSidebar } from './hud/Sidebar.js';
+import { initBottomBar } from './hud/BottomBar.js';
 
 // --- LẤY THAM CHIẾU DOM ---
 const viewport = document.getElementById('viewport');
@@ -19,6 +20,7 @@ initEngine(world);
 
 // --- KHỞI TẠO HUD ---
 const toolbar = initFloatingToolbar({ onSave: handleSave });
+const bottomBar = initBottomBar();
 
 initViewport(viewport, world, commandManager);
 initObjectEvents(viewport, world, commandManager, () => toolbar.resetTool());
@@ -40,6 +42,10 @@ const sidebar = initSidebar({
       if (boards.length > 0) switchBoard(boards[0].id);
     }
   },
+  onBoardRename: (id, newName) => {
+    renameBoard(id, newName);
+    document.title = newName;
+  }
 });
 
 // --- KHỞI TẠO DỮ LIỆU ---
@@ -128,8 +134,9 @@ window.addEventListener('keydown', (e) => {
     handleSave();
   }
 
+
   // Tool shortcuts (chỉ khi không đang gõ)
-  if (!isEditing && !e.ctrlKey && !e.altKey) {
+  if (!isEditing && !e.ctrlKey && !e.altKey && !e.shiftKey) {
     if (e.key === 'v') toolbar.resetTool();
     if (e.key === 'n') { state.activeTool = 'note'; toolbar.resetTool(); state.activeTool = 'note'; document.getElementById('viewport').classList.add('mode-create'); }
     if (e.key === 's') { state.activeTool = 'shape'; document.getElementById('viewport').classList.add('mode-create'); }

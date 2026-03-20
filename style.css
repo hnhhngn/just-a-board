@@ -1,3 +1,68 @@
+/* ============================
+   THEME VARIABLES
+   ============================ */
+:root {
+  --bg-color: #000000;
+  --grid-dot: rgba(255, 255, 255, 0.15);
+  --panel-bg: #1c1c1f;
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --btn-color: rgba(255, 255, 255, 0.7);
+  --btn-hover-bg: rgba(255, 255, 255, 0.15);
+  --btn-hover-color: #ffffff;
+  --btn-active-bg: #f1f3f4;
+  --btn-active-color: #202124;
+  --divider: rgba(255, 255, 255, 0.12);
+  --sidebar-toggle-bg: rgba(60, 60, 64, 0.7);
+  --sidebar-toggle-hover: rgba(80, 80, 86, 0.85);
+  --sidebar-toggle-color: rgba(255, 255, 255, 0.9);
+  --panel-bg-dropdown: #1a1a1c;
+  --text-color: rgba(255, 255, 255, 0.85);
+  --text-active: white;
+  --icon-color: rgba(255, 255, 255, 0.7);
+  --icon-muted: rgba(255, 255, 255, 0.4);
+  --icon-active: rgba(255, 255, 255, 0.9);
+  --item-hover-bg: rgba(255, 255, 255, 0.06);
+  --item-active-bg: rgba(255, 255, 255, 0.1);
+  --tooltip-bg: #000000;
+  --tooltip-border: rgba(255, 255, 255, 0.15);
+  --shape-bg: rgba(100, 180, 255, 0.12);
+  --shape-border: rgba(100, 180, 255, 0.5);
+  --note-bg: #2c2c2c;
+  --note-border: #444;
+  --note-text: #fff;
+}
+
+[data-theme="light"] {
+  --bg-color: #f8f9fa;
+  --grid-dot: rgba(0, 0, 0, 0.15);
+  --panel-bg: rgba(255, 255, 255, 0.95);
+  --panel-border: rgba(0, 0, 0, 0.08);
+  --btn-color: #5f6368;
+  --btn-hover-bg: rgba(0, 0, 0, 0.06);
+  --btn-hover-color: #202124;
+  --btn-active-bg: #202124;
+  --btn-active-color: #ffffff;
+  --divider: rgba(0, 0, 0, 0.08);
+  --sidebar-toggle-bg: rgba(240, 240, 240, 0.8);
+  --sidebar-toggle-hover: rgba(230, 230, 230, 0.9);
+  --sidebar-toggle-color: #202124;
+  --panel-bg-dropdown: #ffffff;
+  --text-color: #202124;
+  --text-active: #000000;
+  --icon-color: #5f6368;
+  --icon-muted: rgba(0, 0, 0, 0.3);
+  --icon-active: #202124;
+  --item-hover-bg: rgba(0, 0, 0, 0.04);
+  --item-active-bg: rgba(0, 0, 0, 0.08);
+  --tooltip-bg: #202124;
+  --tooltip-border: rgba(255, 255, 255, 0.1);
+  --shape-bg: rgba(100, 180, 255, 0.12);
+  --shape-border: rgba(100, 180, 255, 0.6);
+  --note-bg: white;
+  --note-border: #ccc;
+  --note-text: #000;
+}
+
 /* style.css */
 body,
 html {
@@ -7,7 +72,7 @@ html {
   height: 100%;
   overflow: hidden;
   /* Chặn cuộn mặc định của trình duyệt */
-  background-color: #000000;
+  background-color: var(--bg-color);
 }
 
 #viewport {
@@ -31,7 +96,7 @@ html {
   width: 5000px;
   height: 5000px;
   /* Tạo lưới (grid) để dễ quan sát chuyển động */
-  background-image: radial-gradient(#d1d1d1 1px, transparent 1px);
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
   background-size: 40px 40px;
   /* Rất quan trọng cho việc Zoom sau này */
   transform-origin: 0 0;
@@ -47,8 +112,9 @@ html {
 /* --- NOTE --- */
 .note-widget {
   padding: 15px;
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--note-bg);
+  color: var(--note-text);
+  border: 1px solid var(--note-border);
   box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
 }
 
@@ -61,8 +127,8 @@ html {
 .shape-widget {
   width: 200px;
   height: 150px;
-  background: rgba(100, 180, 255, 0.12);
-  border: 2px dashed rgba(100, 180, 255, 0.5);
+  background: var(--shape-bg);
+  border: 2px dashed var(--shape-border);
   border-radius: 8px;
   z-index: 0;
 }
@@ -91,8 +157,8 @@ html {
   flex-direction: column;
   gap: 8px;
   padding: 16px 8px;
-  background: #1c1c1f;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 40px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 }
@@ -100,7 +166,7 @@ html {
 .toolbar-divider {
   width: 24px;
   height: 1px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--divider);
   margin: 4px auto;
 }
 
@@ -111,7 +177,7 @@ html {
   border-radius: 50%;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--btn-color);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -119,12 +185,12 @@ html {
   transition: all 0.15s ease;
 }
 .tool-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  background: var(--btn-hover-bg);
+  color: var(--btn-hover-color);
 }
 .tool-btn.active {
-  background: #f1f3f4;
-  color: #202124;
+  background: var(--btn-active-bg);
+  color: var(--btn-active-color);
 }
 
 /* --- TOOLTIP --- */
@@ -134,10 +200,10 @@ html {
   top: 50%;
   transform: translateY(-50%) scale(0.9);
   padding: 6px 10px;
-  background: #000000;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
   border-radius: 6px;
-  color: #ffffff;
+  color: var(--btn-hover-color);
   font-size: 13px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   white-space: nowrap;
@@ -152,25 +218,25 @@ html {
 
 /* Tooltip Arrow */
 .tool-tooltip::after {
-  content: '';
+  content: "";
   position: absolute;
   right: -5px;
   top: 50%;
   transform: translateY(-50%);
   border-width: 5px 0 5px 5px;
   border-style: solid;
-  border-color: transparent transparent transparent #000000;
+  border-color: transparent transparent transparent var(--tooltip-bg);
   z-index: 2;
 }
 .tool-tooltip::before {
-  content: '';
+  content: "";
   position: absolute;
   right: -6px;
   top: 50%;
   transform: translateY(-50%);
   border-width: 6px 0 6px 6px;
   border-style: solid;
-  border-color: transparent transparent transparent rgba(255,255,255,0.15);
+  border-color: transparent transparent transparent var(--tooltip-border);
   z-index: 1;
 }
 
@@ -185,35 +251,140 @@ html {
 }
 
 /* ============================
-   HUD — Sidebar (Dropdown)
+   HUD — Top Nav & Sidebar
    ============================ */
-.sidebar-toggle {
+.top-nav-container {
   position: fixed;
   top: 16px;
   left: 16px;
-  height: 40px;
-  padding: 0 16px 0 12px;
-  background: rgba(60, 60, 64, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  color: rgba(255, 255, 255, 0.9);
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 16px;
   z-index: 9998;
+}
+
+.sidebar-toggle-btn {
+  width: 56px;
+  height: 40px;
+  border-radius: 20px;
+  background: var(--sidebar-toggle-bg);
+  border: 1px solid rgba(255, 255, 255, 0.05); /* Viền mỏng */
+  color: var(--icon-color);
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+.sidebar-toggle-btn:hover {
+  background: var(--sidebar-toggle-hover);
+}
+
+.board-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.board-title-text {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 500;
-  font-size: 14px;
-  transition: all 0.2s ease;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
 }
-.sidebar-toggle:hover {
-  background: rgba(80, 80, 86, 0.85);
+.board-title-text:hover {
+  background: var(--item-hover-bg);
 }
-.sidebar-toggle-icon {
+
+.board-title-input {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-color);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 4px 6px;
+  border-radius: 2px 2px 0 0;
+  border-bottom: 2px solid #8ab4f8;
+  min-width: 140px;
+  width: max-content;
+}
+
+.board-rename-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--sidebar-toggle-bg);
+  border: none;
+  color: var(--icon-color);
+  cursor: pointer;
   display: flex;
   align-items: center;
-  color: rgba(255, 255, 255, 0.7);
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.15s ease;
+  position: relative;
+}
+.board-title-group:hover .board-rename-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.board-rename-btn:hover {
+  background: var(--sidebar-toggle-hover);
+}
+
+/* Tooltip Đổi Tên */
+.rename-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(5px);
+  background: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
+  color: var(--btn-hover-color);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.15s ease;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.rename-tooltip::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid var(--tooltip-bg);
+  z-index: 2;
+}
+.rename-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid var(--tooltip-border);
+  z-index: 1;
+}
+.board-rename-btn:hover .rename-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .sidebar-overlay {
@@ -234,15 +405,17 @@ html {
   width: 280px;
   height: auto;
   max-height: calc(100vh - 80px);
-  background: #1a1a1c;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--panel-bg-dropdown);
+  border: 1px solid var(--panel-border);
   border-radius: 12px;
   z-index: 10000;
   transform: scale(0.95);
   transform-origin: top left;
   opacity: 0;
   pointer-events: none;
-  transition: transform 0.15s ease-out, opacity 0.15s ease-out;
+  transition:
+    transform 0.15s ease-out,
+    opacity 0.15s ease-out;
   box-sizing: border-box;
   overflow-y: auto;
   display: flex;
@@ -262,7 +435,7 @@ html {
   gap: 12px;
   padding: 10px 12px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-color);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -272,10 +445,10 @@ html {
   text-align: left;
 }
 .sidebar-create-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--item-hover-bg);
 }
 .sidebar-create-btn svg {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--btn-color);
 }
 
 .sidebar-divider-horiz {
@@ -299,10 +472,10 @@ html {
   transition: background 0.15s ease;
 }
 .board-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--item-hover-bg);
 }
 .board-item.active {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--item-active-bg);
 }
 
 .board-item-info {
@@ -313,23 +486,23 @@ html {
   flex: 1;
 }
 .board-icon {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--icon-muted);
   display: flex;
 }
 .board-item.active .board-icon {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--sidebar-toggle-color);
 }
 
 .board-name {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-color);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .board-item.active .board-name {
-  color: white;
+  color: var(--text-active);
 }
 
 .board-delete {
@@ -337,7 +510,7 @@ html {
   height: 28px;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--icon-muted);
   cursor: pointer;
   border-radius: 6px;
   display: flex;
@@ -353,4 +526,83 @@ html {
 .board-delete:hover {
   background: rgba(255, 80, 80, 0.15);
   color: rgb(255, 100, 100);
+}
+
+/* ============================
+   HUD — Bottom Controls
+   ============================ */
+.bottom-controls {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 9998;
+}
+
+.bottom-btn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 18px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.bottom-btn.icon-only {
+  width: 36px;
+  padding: 0;
+}
+.bottom-btn:hover {
+  background: var(--item-hover-bg);
+}
+
+.zoom-dropdown {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  width: max-content;
+  min-width: 140px;
+  background: var(--panel-bg-dropdown);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px) scale(0.95);
+  transform-origin: bottom right;
+  transition: all 0.15s ease;
+}
+.zoom-dropdown.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.zoom-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.zoom-item:hover {
+  background: var(--item-hover-bg);
 }

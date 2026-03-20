@@ -1,44 +1,82 @@
-# Just A Board - Kỹ thuật Tối ưu Hiệu suất (Performance Optimizations)
+# AI-Friendly Documentation: Just A Board
 
-Dự án này là một bảng vô hạn (Infinite Canvas/Board) sử dụng kiến trúc hoàn toàn DOM thuần (Vanilla JS/HTML/CSS). Để đảm bảo trải nghiệm mượt mà 60fps kể cả khi có hàng ngàn đối tượng trên bảng, dự án đã áp dụng các nguyên lý tối ưu hóa hiệu suất cường độ cao dưới đây.
+## 1. System Overview
+**Just A Board** is a Vanilla JS DOM-based infinite canvas application. 
+- **NO FRAMEWORKS**: Plain HTML, CSS, JavaScript (ES Modules).
+- **DOM-based Canvas**: Instead of the `<canvas>` API, the app uses a mega-container (`div#world`) inside a fixed `div#viewport`. Objects are just HTML Nodes.
+- **Hardware Acceleration**: uses `transform: translate3d()` and `scale()` on the `div#world` container to achieve 60FPS fluid pan/zoom.
 
-## 1. Tối ưu Rendering: Chuyển giao sức mạnh cho GPU
-Trình duyệt có 3 bước chính để vẽ giao diện: `Layout -> Paint -> Composite`. Nếu thay đổi `top/left` liên tục khi kéo thả, trình duyệt buộc phải chạy lại cả 3 bước này (vô cùng chậm).
-* **Giải pháp áp dụng:** 
-  * Sử dụng thuộc tính `transform: translate3d(x, y, 0) scale(s);` cho toàn bộ cử động Zoom và Pan của bảng (#world). Điều này chỉ kích hoạt bước `Composite` (bước cuối cùng) và giao toàn bộ phần tính toán cho **GPU**.
-  * Cập nhật `will-change: transform;` trong CSS để ép trình duyệt cấp phát trước slot bộ nhớ GPU, ngăn chặn hiện tượng giật cục trong lần kéo thẻ đầu tiên.
+## 2. Core Architecture
 
-## 2. Vòng lặp Render (Render Loop) với requestAnimationFrame (rAF)
-Sự kiện `mousemove` hoặc `wheel` bắn ra hàng trăm lần mỗi giây. Nếu tính toán UI trực tiếp trong đó sẽ gây quá tải CPU và giật lag (1 giây chỉ hiển thị 60 khung hình).
-* **Giải pháp áp dụng:** Tách biệt hoàn toàn việc "nhận Input" và việc "Vẽ UI".
-  * Các Event Listener chỉ có duy nhất một nhiệm vụ: **Cập nhật tọa độ biến trạng thái (`targetX`, `targetY`)**.
-  * Hàm `animate()` chạy trên `requestAnimationFrame` sẽ tự động hỏi trình duyệt khi nào rảnh để lấy tọa độ đó ra vẽ. Chỉ vẽ khi biến cờ `isDirty = true`. Nếu người dùng không làm gì, engine tự động chuyển sang chế độ ngủ (Idle).
+### App State (`src/state.js`)
+Serves as the central mutable store (Single Source of Truth) for the entire app.
+- **Viewport State**: `currentX`, `currentY`, `currentScale`, `targetX`, `targetY`, `targetScale`.
+- **Anchor Math**: `anchorMouseX`, `anchorWorldX` (used to zoom towards the mouse cursor or screen center).
+- **Engine State**: `isLoopRunning`, `isDirty` (controls requestAnimationFrame).
+- **App Data**: `objects` (array of all widget instances), `activeTool`, `currentBoardId`.
 
-## 3. Lưới Không gian & Culling (Grid Spatial Partitioning + Viewport Culling)
-Đây là kỹ thuật chuyên dùng trong các game engine lớn (như Unity/Unreal).
-* **Vấn đề:** Khi có 5,000 ảnh/ghi chú, dù có dùng rAF, nếu vòng lặp `render` phải tính toán vị trí của cả 5,000 vật thể mỗi khung hình 16ms thì vẫn nghẽn.
-* **Giải pháp áp dụng:** 
-  * **(Viewport Culling):** Chỉ những đối tượng nằm lọt vào ống kính camera (Viewport) của người dùng mới giữ `display: block`. Đối tượng nào ngoài camera sẽ bị thêm `display: none` để trình duyệt bỏ qua việc sơn vẽ đổ bóng.
-  * **(Grid Spatial Partitioning):** Thay vì quét toàn bộ 5,000 vật thể xem cái nào nằm trong Viewport, bảng sẽ được chia thành lưới (Ví dụ: `500x500px`). Mỗi vật thể sinh ra sẽ được đăng ký hộ khẩu vào các ô lưới (Cell). Khi di chuyển, thuật toán sẽ tra xem Viewport đang đè lên những ô lưới nào, và chỉ quét giới hạn các vật thể nằm trong các ô lưới đó. Biến $O(N)$ thành $O(Vật\_thể\_hiển\_thị)$.
+### Render Engine (`src/engine.js`)
+The `engine.js` module runs an optimized rendering loop.
+- **WakeUp / Sleep cycle**: To save CPU, `requestAnimationFrame` only runs when `state.isDirty = true`.
+- **Lerp**: Smoothly interpolates `currentX/Y/Scale` towards `targetX/Y/Scale` using `settings.pansEase` and `zoomEase`.
+- **Culling (Spatial Hashing)**: During the render loop, it calculates the visible boundaries. It uses `src/grid.js` to get a subset of objects potentially in view. Elements completely outside the viewport are assigned `display: none` to conserve DOM rendering performance.
 
-## 4. Dọn dẹp DOM Read tốn kém trong rAF
-Đọc trực tiếp từ cấu trúc DOM (ví dụ: `if (el.style.display === 'none')`) tốn rất nhiều thời gian so với đọc biến JS thuần.
-* **Giải pháp áp dụng:** Lưu trạng thái hiển thị vào chính cấu trúc dữ liệu JS (`obj.isVisible`). Trình duyệt chỉ thay đổi DOM đúng duy nhất 1 lần khi trạng thái của `isVisible` đảo ngược từ `false` sang `true` và ngược lại.
+### Spatial Grid (`src/grid.js`)
+Implements a 2D spatial hash map to handle DOM culling.
+- Maps continuous space into chunks (e.g., `500x500` pixels per cell).
+- Objects are dynamically registered/unregistered as they move or resize.
+- **Query**: Engine calls `getVisibleCandidates(left, top, right, bottom)` to grab elements overlapping the viewport bounds.
 
-## 5. Event Delegation (Chống Rò rỉ Kẹt Sự Kiện)
-Khi dự án mới phát triển, hàm `makeDraggable` gán sự kiện `mousemove` và `mouseup` lên `window` mỗi khi có ghi chú mới. Có 100 ghi chú có nghĩa là có 100 hàm `mousemove` chạy ẩn, gây tê liệt CPU.
-* **Giải pháp áp dụng:** Chuyển sang Event Delegation.
-  * Chỉnh gắn duy nhất 1 sự kiện `mousemove` trên tài liệu (`window`).
-  * Chỉ duy trì 1 biến con trỏ toàn cục: `let activeDragObject = null;`. Khi click/mousedown vào ghi chú nào, con trỏ đó sẽ trỏ vào ghi chú đó và di chuyển nó. Lợi ích bộ nhớ là cực kỳ lớn.
+### Viewport Interaction (`src/viewport.js`)
+Listens to mouse/pointer events on the main container.
+- **Right Click / Mouse Wheel Drag / Space+Drag**: Updates `state.targetX/Y` (Pan).
+- **Scroll Wheel**: Updates `state.targetScale` and calculates zoom anchors (Zoom).
+- **Delegation**: Ensures panning only occurs when the `select` tool is active or when explicitly using pan hotkeys.
 
-## 6. Sửa lỗi kẹt trạng thái chuột (Failsafe Event)
-Trong các dự án Drag & Drop, đôi lúc thao tác chọn văn bản (Text Selection) hoặc mở Context Menu khiến trình duyệt "nuốt" mất sự kiện `mouseup`, khiến đồ vật cứ dính chặt vào con trỏ dù đã nhả tay ra.
-* **Giải pháp áp dụng:** Trong vòng lặp `mousemove`, kiểm tra xem nút bấm vật lý của chuột thực sự có đang giữ hay không thông qua `e.buttons === 0`. Nếu chuột đang hụt `mouseup`, tự ép hệ thống nhả đồ vật (`reset activeDragObject và isPanning`).
-* Đồng thời thêm `e.preventDefault()` cho mousedown vào `#world` để ngăn chặn khối lượng lớn lệnh chọn/nháy văn bản khi di chuyển bảng.
+## 3. Object & Interaction System
 
-## 7. Nội suy Tuyến tính Lượt (Lerp) & Anchor Pinned
-* Mượt chuyển động: Áp dụng công thức Smooth Chase (Lerp) cho `targetX` đuổi theo `currentX` để cảm giác lăn chuột mượt tựa như lướt qua mặt phẳng đá.
-* Ghim điểm neo (Anchor Pinned): Vị trí World X, Y phải được tính trực tiếp từ quy chuẩn `Scale` hiện tại ngay trong quá trình Lerp, thay vì Lerp 3 biến độc lập, nhờ đó khi Zoom con trỏ ở gốc nào, bức hình sẽ Zoom đúng vào gốc đó mà không bị giật, lệch hình.
+### Event Delegation (`src/objects.js`)
+Handles object creation, selection, dragging, and deletion.
+- **Delegation basis**: Listens on `div#world`. Translates screen coordinates (`e.clientX`) to world coordinates (`(clientX - currentX) / currentScale`).
+- **Tools**:
+  - `note`: Single-clicking empty space creates a `NoteWidget`.
+  - `shape`: Single-clicking empty space creates a Shape (or calls `ShapeWidget`).
+  - `select`: Allows dragging elements or double-clicking to trigger their native edit mode.
 
-## 8. Quản lí Bộ nhớ Blob Hình Ảnh
-* Khi sao chép và dán hình ảnh (Clipboard API), dữ liệu nhị phân của ảnh tạo ra qua `URL.createObjectURL(blob)` tiêu thụ bộ nhớ RAM. Do đó, nếu sau này người dùng được cấp phép xóa ghi chú, hãy luôn nhớ gọi `URL.revokeObjectURL(url)` để trình duyệt dọn dẹp RAM rác.
+### Widget Abstraction (`src/widgets/`)
+Common interface for items attached to the board.
+- **Required interface**: 
+  - `createElement()`: Returns DOM node.
+  - `exportData()`: Returns JSON representation.
+  - `attach()`, `detach()`: Injects or removes from `#world`.
+  - `x`, `y`, `width`, `height`: Getters/setters that physically move/size the DOM and simultaneously update their position in the Spatial `grid.js`.
+
+## 4. Storage & State Persistence
+
+### Command Manager / Machine (`src/commands/CommandManager.js`)
+Implements the Command Pattern for Undo/Redo.
+- **Stack**: Maintains `undoStack` and `redoStack`.
+- Commands strictly implement: `execute()` and `undo()`.
+
+### Multi-board Manager (`src/storage/LocalAdapter.js`)
+Manages persistence via `localStorage`.
+- **Index**: `jab-boards-index` (Array of `{id, name, updatedAt}`).
+- **Data storage**: `jab-board-{id}` (JSON stringified array of objects).
+- Supports seamless switching across multiple boards by tearing down (`detach`) the current world and hydrating the new board context.
+
+## 5. User Interface (HUD)
+
+- Uses CSS Custom Properties (`var(--bg-color)`) heavily to support `[data-theme='light']` and Dark mode seamlessly. (See `style.css` > Theme Variables).
+- **Sidebar (`src/hud/Sidebar.js`)**: Floating dropdown overlay handling the multi-board UI. Allows inline-renaming of boards.
+- **Floating Toolbar (`src/hud/FloatingToolbar.js`)**: Static pill containing core tools (Select, Note, Shape, Save) interacting with `state.activeTool`.
+- **Bottom Controls (`src/hud/BottomBar.js`)**: Controls global scale (Zoom Fit, Zoom In/Out, 100%) and the toggle switch for Dark/Light mode overrides.
+
+## 6. AI Contributor Guidelines
+
+1. **Keep it Vanilla**: Do not introduce React/Vue/Svelte or heavy libraries. Use standard DOM manipulating patterns like `document.createElement`.
+2. **Respect the Render Loop**: ALL structural shifts to the `world` transform must be passed to `state.targetX`, `state.targetY`, and `state.targetScale`. Call `wakeUp()` to visually apply the changes. NEVER manipulate `world.style.transform` directly outside `engine.js`.
+3. **Scale factor logic**: Always differentiate between screen space (px relative to viewport) and world space (relative to infinite canvas point `0,0`).
+   - `World = (Screen - currentX) / currentScale`
+   - `Screen = World * currentScale + currentX`
+4. **Theme styling**: Always use `var(--var-name)` strings for colors. If creating a new HUD component, use the defined `--panel-bg`, `--text-color`, `--btn-hover-bg`, `--divider`. Do NOT hardcode standard colors in CSS.
+5. **Culling maintenance**: Ensure any newly created object is properly bound to `grid.js` upon mounting and unmounted upon deletion. If an object moves, call `updateObjectInGrid(obj, oldBounds)`.

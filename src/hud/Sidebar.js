@@ -1,23 +1,39 @@
 /**
  * Khởi tạo Sidebar (Panel Dropdown hiển thị danh sách Board).
  */
-export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBoardCreate, onBoardDelete, menuIcon }) {
-  // --- Nút Toggle dạng Pill ngang ---
-  const toggle = document.createElement('div');
-  toggle.className = 'sidebar-toggle';
-  toggle.title = 'Danh sách dự án';
-  toggle.innerHTML = `
-    <span class="sidebar-toggle-icon">${menuIcon}</span>
-    <span class="sidebar-toggle-text">Loading...</span>
+export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBoardCreate, onBoardDelete, onBoardRename, menuIcon }) {
+  // --- Container Top Nav ---
+  const topNav = document.createElement('div');
+  topNav.className = 'top-nav-container';
+  topNav.innerHTML = `
+    <button class="sidebar-toggle-btn" title="Menu dự án">
+      ${menuIcon}
+    </button>
+    <div class="board-title-group">
+      <span class="board-title-text" title="Đổi tên dự án">Loading...</span>
+      <input type="text" class="board-title-input" style="display:none" autocomplete="off" spellcheck="false" />
+      <button class="board-rename-btn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20h9"></path>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+        </svg>
+        <div class="rename-tooltip">Đổi tên dự án</div>
+      </button>
+    </div>
   `;
-  document.body.appendChild(toggle);
+  document.body.appendChild(topNav);
 
-  // --- Overlay vỗ hình để đóng dropdown ---
+  const toggleBtn = topNav.querySelector('.sidebar-toggle-btn');
+  const titleText = topNav.querySelector('.board-title-text');
+  const titleInput = topNav.querySelector('.board-title-input');
+  const renameBtn = topNav.querySelector('.board-rename-btn');
+
+  // --- Bảng Overlay để bấm ra ngoài tắt Dropdown ---
   const overlay = document.createElement('div');
   overlay.className = 'sidebar-overlay';
   document.body.appendChild(overlay);
 
-  // --- Sidebar Dropdown Panel ---
+  // --- Sidebar Dropdown Menu ---
   const sidebar = document.createElement('div');
   sidebar.className = 'sidebar';
   sidebar.innerHTML = `
@@ -36,9 +52,55 @@ export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBo
   let _currentBoardId = currentBoardId;
 
   function updateTitleText(title) {
-    toggle.querySelector('.sidebar-toggle-text').textContent = title;
+    titleText.textContent = title;
   }
 
+  // --- Logic Rename ---
+  let isEditingTitle = false;
+  function startEditTitle() {
+    isEditingTitle = true;
+    const currentName = titleText.textContent;
+    titleText.style.display = 'none';
+    renameBtn.style.display = 'none';
+    titleInput.style.display = 'block';
+    titleInput.value = currentName;
+    titleInput.focus();
+    titleInput.select();
+  }
+
+  function endEditTitle() {
+    if (!isEditingTitle) return;
+    isEditingTitle = false;
+    let newName = titleInput.value.trim();
+    if (!newName) newName = "Untitled Board";
+
+    updateTitleText(newName);
+    titleText.style.display = 'block';
+    renameBtn.style.display = '';
+    titleInput.style.display = 'none';
+
+    if (onBoardRename && _currentBoardId) {
+      onBoardRename(_currentBoardId, newName);
+      refreshList(); // Update UI in sidebar too
+    }
+  }
+
+  titleText.addEventListener('click', startEditTitle);
+  renameBtn.addEventListener('click', startEditTitle);
+
+  titleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') endEditTitle();
+    if (e.key === 'Escape') {
+      isEditingTitle = false;
+      titleText.style.display = 'block';
+      renameBtn.style.display = '';
+      titleInput.style.display = 'none';
+    }
+  });
+
+  titleInput.addEventListener('blur', endEditTitle);
+
+  // --- Sidebar Logic ---
   function openSidebar() {
     isOpen = true;
     sidebar.classList.add('open');
@@ -52,15 +114,13 @@ export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBo
     overlay.classList.remove('open');
   }
 
-  // Click vào toggle thì bật menu
-  toggle.addEventListener('click', (e) => {
+  toggleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     isOpen ? closeSidebar() : openSidebar();
   });
 
   overlay.addEventListener('click', closeSidebar);
 
-  // Sự kiện tạo board mới
   sidebar.querySelector('.sidebar-create-btn').addEventListener('click', () => {
     onBoardCreate();
     refreshList();
@@ -72,7 +132,7 @@ export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBo
     list.innerHTML = '';
 
     const currentInfo = boards.find((b) => b.id === _currentBoardId);
-    if (currentInfo) updateTitleText(currentInfo.name);
+    if (currentInfo && !isEditingTitle) updateTitleText(currentInfo.name);
 
     boards.forEach((board) => {
       const item = document.createElement('div');
@@ -94,7 +154,6 @@ export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBo
         </button>
       `;
 
-      // Click chọn board (bấm vào vùng trái)
       item.querySelector('.board-item-info').addEventListener('click', () => {
         if (board.id === _currentBoardId) return;
         onBoardSelect(board.id);
@@ -103,7 +162,6 @@ export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBo
         closeSidebar();
       });
 
-      // Click xóa board
       item.querySelector('.board-delete').addEventListener('click', (e) => {
         e.stopPropagation();
         if (boards.length <= 1) {
@@ -132,7 +190,7 @@ export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBo
       _currentBoardId = id;
       const boards = getBoardIndex();
       const currentInfo = boards.find((b) => b.id === id);
-      if (currentInfo) {
+      if (currentInfo && !isEditingTitle) {
         updateTitleText(currentInfo.name);
       }
     },
