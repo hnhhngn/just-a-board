@@ -1,11 +1,15 @@
 import { state } from './state.js';
 import { wakeUp } from './engine.js';
 import { updateObjectInGrid } from './grid.js';
+import { MoveObjectCmd } from './commands/MoveObjectCmd.js';
+
+let _commandManager = null;
 
 /**
  * Khởi tạo toàn bộ sự kiện Pan, Zoom và Drag Delegation.
  */
-export function initViewport(viewport, world) {
+export function initViewport(viewport, world, commandManager) {
+  _commandManager = commandManager;
   // --- MOUSEDOWN: Pan bảng HOẶC Kéo Widget ---
   viewport.addEventListener("mousedown", (e) => {
     // --- XỬ LÝ KÉO NOTE (DELEGATION) ---
@@ -25,6 +29,9 @@ export function initViewport(viewport, world) {
     // --- XỬ LÝ PAN BẢNG ---
     if (e.target !== viewport && e.target !== world) return;
 
+    // Hủy focus khỏi Note đang được chỉnh sửa
+    if (document.activeElement) document.activeElement.blur();
+
     e.preventDefault(); // Chặn hiện tượng nháy bôi đen văn bản/ảnh
 
     state.isPanning = true;
@@ -37,6 +44,7 @@ export function initViewport(viewport, world) {
     // Failsafe: phát hiện chuột đã thả nhưng browser nuốt mouseup
     if (e.buttons === 0) {
       if (state.activeDragObject) {
+        recordMove(state.activeDragObject);
         state.activeDragObject.element.style.zIndex = "";
         state.activeDragObject = null;
       }
@@ -68,11 +76,23 @@ export function initViewport(viewport, world) {
   // --- MOUSEUP: Nhả chuột ---
   window.addEventListener("mouseup", () => {
     if (state.activeDragObject) {
+      recordMove(state.activeDragObject);
       state.activeDragObject.element.style.zIndex = "";
       state.activeDragObject = null;
     }
     state.isPanning = false;
   });
+
+  /**
+   * Ghi nhận lệnh di chuyển (chỉ khi vị trí thực sự thay đổi).
+   */
+  function recordMove(obj) {
+    if (obj.x !== state.dragStartLeft || obj.y !== state.dragStartTop) {
+      _commandManager.record(
+        new MoveObjectCmd(obj, state.dragStartLeft, state.dragStartTop, obj.x, obj.y)
+      );
+    }
+  }
 
   // --- WHEEL: Zoom ---
   viewport.addEventListener(
