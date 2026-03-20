@@ -9,6 +9,7 @@ import { getBoardIndex, createBoard, deleteBoard, saveBoardData, loadBoardData, 
 import { initFloatingToolbar } from './hud/FloatingToolbar.js';
 import { initSidebar } from './hud/Sidebar.js';
 import { initBottomBar } from './hud/BottomBar.js';
+import { initObjectList } from './hud/ObjectList.js';
 
 // --- LẤY THAM CHIẾU DOM ---
 const viewport = document.getElementById('viewport');
@@ -21,6 +22,7 @@ initEngine(world);
 // --- KHỞI TẠO HUD ---
 const toolbar = initFloatingToolbar({ onSave: handleSave });
 const bottomBar = initBottomBar();
+const objectList = initObjectList();
 
 initViewport(viewport, world, commandManager);
 initObjectEvents(viewport, world, commandManager, () => toolbar.resetTool());
