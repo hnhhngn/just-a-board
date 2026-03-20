@@ -11,19 +11,13 @@ export class MoveObjectCmd {
   }
 
   execute() {
-    this.obj.x = this.newX;
-    this.obj.y = this.newY;
-    this.obj.element.style.left = `${this.newX}px`;
-    this.obj.element.style.top = `${this.newY}px`;
+    this.obj.setPosition(this.newX, this.newY);
     updateObjectInGrid(this.obj);
     wakeUp();
   }
 
   undo() {
-    this.obj.x = this.oldX;
-    this.obj.y = this.oldY;
-    this.obj.element.style.left = `${this.oldX}px`;
-    this.obj.element.style.top = `${this.oldY}px`;
+    this.obj.setPosition(this.oldX, this.oldY);
     updateObjectInGrid(this.obj);
     wakeUp();
   }

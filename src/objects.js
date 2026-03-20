@@ -1,19 +1,24 @@
 import { state } from './state.js';
 import { CreateNoteCmd } from './commands/CreateNoteCmd.js';
 import { CreateImageCmd } from './commands/CreateImageCmd.js';
+import { CreateShapeCmd } from './commands/CreateShapeCmd.js';
 
 /**
  * Khởi tạo sự kiện tạo ghi chú (dblclick) và dán ảnh (paste).
  */
 export function initObjectEvents(viewport, world, commandManager) {
-  // Double click để tạo ghi chú
+  // Double click để tạo ghi chú, Shift+DblClick để tạo Shape
   viewport.addEventListener('dblclick', (e) => {
     if (e.target !== viewport && e.target !== world) return;
 
     const x = (e.clientX - state.targetX) / state.targetScale;
     const y = (e.clientY - state.targetY) / state.targetScale;
 
-    commandManager.execute(new CreateNoteCmd(world, x, y));
+    if (e.shiftKey) {
+      commandManager.execute(new CreateShapeCmd(world, x, y));
+    } else {
+      commandManager.execute(new CreateNoteCmd(world, x, y));
+    }
   });
 
   // Dán hình ảnh từ clipboard

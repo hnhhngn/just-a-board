@@ -1,12 +1,11 @@
 import { state } from '../state.js';
 import { wakeUp } from '../engine.js';
-import { addObjectToGrid, removeObjectFromGrid, updateObjectInGrid, currentlyVisibleObjects } from '../grid.js';
-import { ImageWidget } from '../widgets/ImageWidget.js';
+import { addObjectToGrid, removeObjectFromGrid, currentlyVisibleObjects } from '../grid.js';
+import { ShapeWidget } from '../widgets/ShapeWidget.js';
 
-export class CreateImageCmd {
-  constructor(world, blobUrl, x, y) {
+export class CreateShapeCmd {
+  constructor(world, x, y) {
     this.world = world;
-    this.blobUrl = blobUrl;
     this.x = x;
     this.y = y;
     this.widget = null;
@@ -14,10 +13,10 @@ export class CreateImageCmd {
 
   execute() {
     if (!this.widget) {
-      this.widget = new ImageWidget(this.x, this.y, this.blobUrl);
+      this.widget = new ShapeWidget(this.x, this.y);
     }
 
-    this.widget.attachTo(this.world, (w) => updateObjectInGrid(w));
+    this.widget.attachTo(this.world);
     state.objects.push(this.widget);
     addObjectToGrid(this.widget);
     currentlyVisibleObjects.add(this.widget);

@@ -1,57 +1,35 @@
 import { state } from '../state.js';
 import { wakeUp } from '../engine.js';
 import { addObjectToGrid, removeObjectFromGrid, currentlyVisibleObjects } from '../grid.js';
+import { NoteWidget } from '../widgets/NoteWidget.js';
 
 export class CreateNoteCmd {
   constructor(world, x, y) {
     this.world = world;
     this.x = x;
     this.y = y;
-    this.obj = null;
+    this.widget = null;
   }
 
   execute() {
-    if (!this.obj) {
-      // Lần đầu: tạo DOM element
-      const note = document.createElement('div');
-      note.className = 'note';
-      note.contentEditable = true;
-      note.innerText = 'Ghi chú mới...';
-      note.style.left = `${this.x}px`;
-      note.style.top = `${this.y}px`;
-
-      this.obj = {
-        type: 'note',
-        element: note,
-        x: this.x,
-        y: this.y,
-        width: 200,
-        height: 100,
-        isVisible: true,
-      };
-      note.__data = this.obj;
+    if (!this.widget) {
+      this.widget = new NoteWidget(this.x, this.y);
     }
 
-    // Thêm vào bảng
-    this.world.appendChild(this.obj.element);
-    state.objects.push(this.obj);
-    addObjectToGrid(this.obj);
-    currentlyVisibleObjects.add(this.obj);
-
-    // Cập nhật kích thước thực tế
-    this.obj.width = this.obj.element.offsetWidth || 200;
-    this.obj.height = this.obj.element.offsetHeight || 100;
+    this.widget.attachTo(this.world);
+    state.objects.push(this.widget);
+    addObjectToGrid(this.widget);
+    currentlyVisibleObjects.add(this.widget);
 
     wakeUp();
   }
 
   undo() {
-    // Lưu lại text hiện tại (phòng user đã sửa)
-    this.obj.element.remove();
-    const idx = state.objects.indexOf(this.obj);
+    this.widget.detach();
+    const idx = state.objects.indexOf(this.widget);
     if (idx !== -1) state.objects.splice(idx, 1);
-    removeObjectFromGrid(this.obj);
-    currentlyVisibleObjects.delete(this.obj);
+    removeObjectFromGrid(this.widget);
+    currentlyVisibleObjects.delete(this.widget);
     wakeUp();
   }
 }

@@ -13,7 +13,7 @@ export function initViewport(viewport, world, commandManager) {
   // --- MOUSEDOWN: Pan bảng HOẶC Kéo Widget ---
   viewport.addEventListener("mousedown", (e) => {
     // --- XỬ LÝ KÉO NOTE (DELEGATION) ---
-    const noteEl = e.target.closest('.note');
+    const noteEl = e.target.closest('.board-object');
     if (noteEl && noteEl.__data) {
       e.stopPropagation();
       state.activeDragObject = noteEl.__data;
