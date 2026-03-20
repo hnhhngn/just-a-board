@@ -38,4 +38,12 @@ export class CommandManager {
     cmd.execute();
     this.undoStack.push(cmd);
   }
+
+  /**
+   * Xóa toàn bộ lịch sử — dùng khi chuyển Board.
+   */
+  clear() {
+    this.undoStack = [];
+    this.redoStack = [];
+  }
 }

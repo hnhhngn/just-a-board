@@ -41,4 +41,8 @@ export const state = {
 
   // Danh sách đối tượng
   objects: [],
+
+  // HUD & Tools
+  activeTool: 'select', // 'select' | 'note' | 'shape'
+  currentBoardId: null,
 };

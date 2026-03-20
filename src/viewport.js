@@ -28,6 +28,7 @@ export function initViewport(viewport, world, commandManager) {
 
     // --- XỬ LÝ PAN BẢNG ---
     if (e.target !== viewport && e.target !== world) return;
+    if (state.activeTool !== 'select') return; // Không pan khi đang ở chế độ tạo widget
 
     // Hủy focus khỏi Note đang được chỉnh sửa
     if (document.activeElement) document.activeElement.blur();

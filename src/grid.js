@@ -68,3 +68,11 @@ export function getVisibleCandidates(vLeft, vTop, vRight, vBottom, margin) {
   }
   return candidates;
 }
+
+/**
+ * Xóa toàn bộ dữ liệu lưới — dùng khi chuyển Board.
+ */
+export function clearGrid() {
+  spatialGrid.clear();
+  currentlyVisibleObjects.clear();
+}
