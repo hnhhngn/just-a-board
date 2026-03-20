@@ -4,6 +4,7 @@ export const settings = {
   pansEase: 0.2, // Tốc độ đuổi theo của Pan
   zoomEase: 0.15, // Tốc độ đuổi theo của Zoom
   epsilon: 0.001, // Sai số cho phép để dừng engine
+  showGrid: true, // Hiện/ẩn lưới chấm bi
 };
 
 // --- TRẠNG THÁI TOÀN CỤC (STATE) ---
