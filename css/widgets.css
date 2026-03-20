@@ -1,0 +1,24 @@
+/* ============================
+   WIDGETS — Note, Image, Shape
+   ============================ */
+
+.note-widget {
+  padding: 15px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.image-widget {
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.shape-widget {
+  width: 200px;
+  height: 150px;
+  background: hsla(212, 100%, 70%, 0.12);
+  border: 2px dashed hsla(212, 100%, 70%, 0.5);
+  border-radius: 8px;
+  z-index: 0;
+}
