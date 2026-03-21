@@ -5,7 +5,7 @@ import { initObjectEvents } from './objects.js';
 import { clearGrid } from './grid.js';
 import { CommandManager } from './commands/CommandManager.js';
 import { serialize, deserialize } from './storage/BoardSerializer.js';
-import { getBoardIndex, createBoard, deleteBoard, saveBoardData, loadBoardData, migrateIfNeeded, renameBoard } from './storage/LocalAdapter.js';
+import { getIndex, create, remove, save, load, rename } from './storage/index.js';
 import { initFloatingToolbar } from './hud/FloatingToolbar.js';
 import { initSidebar } from './hud/Sidebar.js';
 import { initBottomBar } from './hud/BottomBar.js';
@@ -28,24 +28,24 @@ initViewport(viewport, world, commandManager);
 initObjectEvents(viewport, world, commandManager, () => toolbar.resetTool());
 
 const sidebar = initSidebar({
-  getBoardIndex,
+  getIndex,
   currentBoardId: state.currentBoardId,
   menuIcon: toolbar.menuIcon,
-  onBoardSelect: (id) => switchBoard(id),
-  onBoardCreate: () => {
-    const board = createBoard();
-    switchBoard(board.id);
+  onBoardSelect: async (id) => await switchBoard(id),
+  onBoardCreate: async () => {
+    const board = await create();
+    await switchBoard(board.id);
   },
-  onBoardDelete: (id) => {
-    deleteBoard(id);
+  onBoardDelete: async (id) => {
+    await remove(id);
     // Nếu xóa board đang mở → chuyển sang board đầu tiên
     if (id === state.currentBoardId) {
-      const boards = getBoardIndex();
-      if (boards.length > 0) switchBoard(boards[0].id);
+      const boards = await getIndex();
+      if (boards.length > 0) await switchBoard(boards[0].id);
     }
   },
-  onBoardRename: (id, newName) => {
-    renameBoard(id, newName);
+  onBoardRename: async (id, newName) => {
+    await rename(id, newName);
     document.title = newName;
   }
 });
@@ -53,29 +53,25 @@ const sidebar = initSidebar({
 // --- KHỞI TẠO DỮ LIỆU ---
 initializeData();
 
-function initializeData() {
-  // Di chuyển dữ liệu cũ nếu có
-  const migratedId = migrateIfNeeded();
-
-  const boards = getBoardIndex();
+async function initializeData() {
+  const boards = await getIndex();
+  
   if (boards.length === 0) {
     // Lần đầu mở ứng dụng: tạo board mặc định
-    const board = createBoard('Board mặc định');
+    const board = await create('Board mặc định');
     state.currentBoardId = board.id;
-  } else if (migratedId) {
-    state.currentBoardId = migratedId;
   } else {
     state.currentBoardId = boards[0].id;
   }
 
-  sidebar.setCurrentBoard(state.currentBoardId);
-  loadCurrentBoard();
+  await sidebar.setCurrentBoard(state.currentBoardId);
+  await loadCurrentBoard();
 }
 
 // --- QUẢN LÝ BOARD ---
 
-function loadCurrentBoard() {
-  const data = loadBoardData(state.currentBoardId);
+async function loadCurrentBoard() {
+  const data = await load(state.currentBoardId);
   if (data) {
     deserialize(data, world);
   }
@@ -100,18 +96,18 @@ async function switchBoard(boardId) {
 
   // 3. Chuyển sang board mới
   state.currentBoardId = boardId;
-  sidebar.setCurrentBoard(boardId);
-  loadCurrentBoard();
+  await sidebar.setCurrentBoard(boardId);
+  await loadCurrentBoard();
 
   // 4. Cập nhật tiêu đề
-  const boards = getBoardIndex();
+  const boards = await getIndex();
   const board = boards.find((b) => b.id === boardId);
   document.title = board ? board.name : 'Just a board';
 }
 
 async function saveCurrentBoard() {
   const json = await serialize(state.objects);
-  saveBoardData(state.currentBoardId, json);
+  await save(state.currentBoardId, json);
 }
 
 // --- PHÍM TẮT ---
@@ -149,9 +145,16 @@ async function handleSave() {
   try {
     await saveCurrentBoard();
     document.title = '✓ Đã lưu!';
-    setTimeout(() => {
-      const boards = getBoardIndex();
-      const board = boards.find((b) => b.id === state.currentBoardId);
+    
+    // Lưu lại ID hiện tại để đề phòng user đổi tab quá nhanh
+    const savedId = state.currentBoardId;
+
+    setTimeout(async () => {
+      // Chỉ update lại tên cũ nếu chưa switch sang tab khác
+      if (state.currentBoardId !== savedId) return;
+
+      const boards = await getIndex();
+      const board = boards.find((b) => b.id === savedId);
       document.title = board ? board.name : 'Just a board';
     }, 2000);
   } catch (err) {

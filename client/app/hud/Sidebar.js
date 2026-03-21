@@ -1,7 +1,7 @@
 /**
  * Khởi tạo Sidebar (Panel Dropdown hiển thị danh sách Board).
  */
-export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBoardCreate, onBoardDelete, onBoardRename, menuIcon }) {
+export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCreate, onBoardDelete, onBoardRename, menuIcon }) {
   // --- Container Top Nav ---
   const topNav = document.createElement('div');
   topNav.className = 'top-nav-container';
@@ -121,15 +121,17 @@ export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBo
 
   overlay.addEventListener('click', closeSidebar);
 
-  sidebar.querySelector('.sidebar-create-btn').addEventListener('click', () => {
-    onBoardCreate();
-    refreshList();
+  sidebar.querySelector('.sidebar-create-btn').addEventListener('click', async () => {
+    await onBoardCreate();
+    await refreshList();
   });
 
-  function refreshList() {
+  async function refreshList() {
     const list = sidebar.querySelector('#boardList');
-    const boards = getBoardIndex();
-    list.innerHTML = '';
+    list.innerHTML = '<div class="board-item">Loading...</div>'; // Loading indicator
+    
+    const boards = await getIndex();
+    list.innerHTML = ''; // Xóa loading
 
     const currentInfo = boards.find((b) => b.id === _currentBoardId);
     if (currentInfo && !isEditingTitle) updateTitleText(currentInfo.name);
@@ -162,15 +164,15 @@ export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBo
         closeSidebar();
       });
 
-      item.querySelector('.board-delete').addEventListener('click', (e) => {
+      item.querySelector('.board-delete').addEventListener('click', async (e) => {
         e.stopPropagation();
         if (boards.length <= 1) {
           alert('Không thể xóa Board cuối cùng!');
           return;
         }
         if (confirm(`Xóa "${board.name}"?`)) {
-          onBoardDelete(board.id);
-          refreshList();
+          await onBoardDelete(board.id);
+          await refreshList();
         }
       });
 
@@ -186,9 +188,9 @@ export function initSidebar({ getBoardIndex, currentBoardId, onBoardSelect, onBo
 
   return {
     refreshList,
-    setCurrentBoard(id) {
+    async setCurrentBoard(id) {
       _currentBoardId = id;
-      const boards = getBoardIndex();
+      const boards = await getIndex();
       const currentInfo = boards.find((b) => b.id === id);
       if (currentInfo && !isEditingTitle) {
         updateTitleText(currentInfo.name);

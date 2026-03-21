@@ -1,95 +1,79 @@
 # Just A Board
 
-## 1. System Overview
+## 1. Tổng quan hệ thống (System Overview)
 
-**Just A Board** is a Vanilla JS DOM-based infinite canvas application.
+**Just A Board** là một ứng dụng infinite canvas dựa trên DOM bằng Vanilla JS.
+- **KHÔNG SỬ DỤNG FRAMEWORK**: Chỉ dùng HTML, CSS, JavaScript (ES Modules) thuần túy.
+- **Canvas dựa trên DOM**: Thay vì sử dụng `<canvas>` API, ứng dụng dùng một mega-container (`div#world`) nằm trong một `div#viewport` cố định. Các đối tượng chỉ là các HTML Node.
+- **Hardware Acceleration**: Sử dụng `transform: translate3d()` và `scale()` trên `div#world` container để đạt được khả năng pan/zoom mượt mà ở 60FPS.
 
-- **NO FRAMEWORKS**: Plain HTML, CSS, JavaScript (ES Modules).
-- **DOM-based Canvas**: Instead of the `<canvas>` API, the app uses a mega-container (`div#world`) inside a fixed `div#viewport`. Objects are just HTML Nodes.
-- **Hardware Acceleration**: uses `transform: translate3d()` and `scale()` on the `div#world` container to achieve 60FPS fluid pan/zoom.
+## 2. Kiến trúc thư mục (Project Structure)
 
-## 2. Core Architecture
+Dự án được chia thành 2 phần chính: `client` (Frontend) và `server` (Backend).
 
-### App State (`src/state.js`)
+### Server (Backend)
+Hệ thống backend lưu trữ dữ liệu (Persistence Server).
+- Chạy bằng **PowerShell 5.1** (`server/server.ps1`).
+- Phục vụ (serve) các file tĩnh (HTML, CSS, JS, hình ảnh) cho Frontend.
+- Cung cấp REST API xử lý các phương thức GET, POST, PUT, PATCH, DELETE để lưu trữ dữ liệu các bảng (boards) đưới dạng file JSON (trong thư mục `server/data/`).
 
-Serves as the central mutable store (Single Source of Truth) for the entire app.
+### Client (Frontend)
+Toàn bộ mã nguồn giao diện nằm trong thư mục `client/app/`. Tệp entry html là `client/index.html`.
 
+#### Trạng thái ứng dụng (`client/app/state.js`)
+Đóng vai trò là trung tâm lưu trữ dữ liệu có thể thay đổi (Single Source of Truth) cho toàn bộ ứng dụng.
 - **Viewport State**: `currentX`, `currentY`, `currentScale`, `targetX`, `targetY`, `targetScale`.
-- **Anchor Math**: `anchorMouseX`, `anchorWorldX` (used to zoom towards the mouse cursor or screen center).
-- **Engine State**: `isLoopRunning`, `isDirty` (controls requestAnimationFrame).
-- **App Data**: `objects` (array of all widget instances), `activeTool`, `currentBoardId`.
+- **Anchor Math**: `anchorMouseX`, `anchorWorldX` (dùng để zoom hướng tới con trỏ chuột hoặc trung tâm màn hình).
+- **Engine State**: `isLoopRunning`, `isDirty` (điều khiển requestAnimationFrame).
+- **App Data**: `objects` (mảng chứa các widget instance), `activeTool`, `currentBoardId`.
 
-### Render Engine (`src/engine.js`)
+#### Render Engine (`client/app/engine.js`)
+Module `engine.js` chạy một vòng lặp render tối ưu.
+- **WakeUp / Sleep cycle**: Để tiết kiệm CPU, `requestAnimationFrame` chỉ chạy khi `state.isDirty = true`.
+- **Lerp**: Nội suy mượt mà tọa độ `currentX/Y/Scale` tới `targetX/Y/Scale` bằng parameter `settings.pansEase` và `zoomEase`.
+- **Culling (Spatial Hashing)**: Lấy danh sách các đối tượng hiển thị trong khung nhìn thông qua `client/app/grid.js`. Các phần tử nằm ngoài viewport sẽ được gắn `display: none` để tiết kiệm hiệu năng render của DOM Tree.
 
-The `engine.js` module runs an optimized rendering loop.
+#### Spatial Grid (`client/app/grid.js`)
+Triển khai một spatial hash map 2D để tối ưu hóa việc quản lý DOM culling.
+- Chia không gian viewport thành các chunk liên tục.
+- Tự động đăng ký/hủy đăng ký đối tượng động khi chúng di chuyển hoặc thay đổi kích thước.
 
-- **WakeUp / Sleep cycle**: To save CPU, `requestAnimationFrame` only runs when `state.isDirty = true`.
-- **Lerp**: Smoothly interpolates `currentX/Y/Scale` towards `targetX/Y/Scale` using `settings.pansEase` and `zoomEase`.
-- **Culling (Spatial Hashing)**: During the render loop, it calculates the visible boundaries. It uses `src/grid.js` to get a subset of objects potentially in view. Elements completely outside the viewport are assigned `display: none` to conserve DOM rendering performance.
+#### Tương tác Viewport (`client/app/viewport.js`)
+Lắng nghe các sự kiện chuột/con trỏ trên container chính.
+- **Click chuột phải / Kéo chuột giữa / Space+Drag**: Cập nhật `state.targetX/Y` (Tính năng Pan).
+- **Scroll Wheel**: Cập nhật `state.targetScale` và tính toán anchor point để tính năng Zoom.
 
-### Spatial Grid (`src/grid.js`)
+## 3. Hệ thống Đối tượng & Tương tác
 
-Implements a 2D spatial hash map to handle DOM culling.
+#### Phân bổ Sự kiện (`client/app/objects.js`)
+Xử lý khởi tạo, chọn, kéo và xóa đối tượng. Lắng nghe trên `div#world` bằng Event Delegation và chuyển đổi tọa độ màn hình sang tọa độ thế giới (world coordinates).
 
-- Maps continuous space into chunks (e.g., `500x500` pixels per cell).
-- Objects are dynamically registered/unregistered as they move or resize.
-- **Query**: Engine calls `getVisibleCandidates(left, top, right, bottom)` to grab elements overlapping the viewport bounds.
+#### Trừu tượng hóa Widget (`client/app/widgets/`)
+Interface chung cho các mục được gắn lên bảng mạch.
+- Yêu cầu: Có các phương thức `createElement()`, `exportData()`, `attach()`, `detach()`, các getter/setter cho `x`, `y`, `width`, `height`.
 
-### Viewport Interaction (`src/viewport.js`)
+## 4. Lưu trữ dữ liệu (Storage & Persistence)
 
-Listens to mouse/pointer events on the main container.
+#### Trình quản lý Lệnh (`client/app/commands/CommandManager.js`)
+Triển khai Command Pattern áp dụng cho Undo/Redo actions.
 
-- **Right Click / Mouse Wheel Drag / Space+Drag**: Updates `state.targetX/Y` (Pan).
-- **Scroll Wheel**: Updates `state.targetScale` and calculates zoom anchors (Zoom).
-- **Delegation**: Ensures panning only occurs when the `select` tool is active or when explicitly using pan hotkeys.
+#### Lớp trừu tượng Storage (`client/app/storage/`)
+Hệ thống sử dụng Adapter Pattern để cho phép thay đổi nơi lưu trữ thông qua biến `MODE` nằm trong `client/app/storage/index.js`.
+- **`LocalAdapter.js`**: Lưu trữ cục bộ trên máy client thông qua `localStorage`.
+- **`ServerAdapter.js`**: Lưu trữ lâu dài trên máy chủ thông qua REST API giao tiếp với tệp `server.ps1` sử dụng `fetch()`.
 
-## 3. Object & Interaction System
+## 5. Giao diện Người dùng (HUD)
+Nằm trong kiến trúc thư mục `client/app/hud/`.
+- Thay đổi light / dark theme thông qua CSS Custom Properties (e.g. `var(--bg-color)`).
+- **Sidebar (`client/app/hud/Sidebar.js`)**: Quản lý UI điều khiển đa bảng (multi-board), cho phép thao tác bất đồng bộ chuyển/tạo/đổi tên/xóa board bằng Async/Await qua Storage Adapter.
+- **Thanh công cụ (`client/app/hud/FloatingToolbar.js` và `BottomBar.js`)**: Chứa các chức năng tools.
 
-### Event Delegation (`src/objects.js`)
+## 6. Hướng dẫn chạy dự án
+1. Mở root của dự án. Chạy file script: `run.bat` (Hoặc mở thư mục trong Terminal, chạy lệnh: `powershell -ExecutionPolicy Bypass -File .\server\server.ps1`).
+2. Mở trình duyệt Web. Truy cập địa chỉ hiển thị trên Terminal (Mặc định cấu hình vào port **`http://localhost:2502/`**).
+3. Đổi cơ chế định dạng lưu (Server Database / Local Cache) thông qua biến cấu trúc tại file `client/app/storage/index.js` (biến tham số `MODE`).
 
-Handles object creation, selection, dragging, and deletion.
-
-- **Delegation basis**: Listens on `div#world`. Translates screen coordinates (`e.clientX`) to world coordinates (`(clientX - currentX) / currentScale`).
-- **Tools**:
-  - `note`: Single-clicking empty space creates a `NoteWidget`.
-  - `shape`: Single-clicking empty space creates a Shape (or calls `ShapeWidget`).
-  - `select`: Allows dragging elements or double-clicking to trigger their native edit mode.
-
-### Widget Abstraction (`src/widgets/`)
-
-Common interface for items attached to the board.
-
-- **Required interface**:
-  - `createElement()`: Returns DOM node.
-  - `exportData()`: Returns JSON representation.
-  - `attach()`, `detach()`: Injects or removes from `#world`.
-  - `x`, `y`, `width`, `height`: Getters/setters that physically move/size the DOM and simultaneously update their position in the Spatial `grid.js`.
-
-## 4. Storage & State Persistence
-
-### Command Manager / Machine (`src/commands/CommandManager.js`)
-
-Implements the Command Pattern for Undo/Redo.
-
-- **Stack**: Maintains `undoStack` and `redoStack`.
-- Commands strictly implement: `execute()` and `undo()`.
-
-### Multi-board Manager (`src/storage/LocalAdapter.js`)
-
-Manages persistence via `localStorage`.
-
-- **Index**: `jab-boards-index` (Array of `{id, name, updatedAt}`).
-- **Data storage**: `jab-board-{id}` (JSON stringified array of objects).
-- Supports seamless switching across multiple boards by tearing down (`detach`) the current world and hydrating the new board context.
-
-## 5. User Interface (HUD)
-
-- Uses CSS Custom Properties (`var(--bg-color)`) heavily to support `[data-theme='light']` and Dark mode seamlessly. (See `style.css` > Theme Variables).
-- **Sidebar (`src/hud/Sidebar.js`)**: Floating dropdown overlay handling the multi-board UI. Allows inline-renaming of boards.
-- **Floating Toolbar (`src/hud/FloatingToolbar.js`)**: Static pill containing core tools (Select, Note, Shape, Save) interacting with `state.activeTool`.
-- **Bottom Controls (`src/hud/BottomBar.js`)**: Controls global scale (Zoom Fit, Zoom In/Out, 100%) and the toggle switch for Dark/Light mode overrides.
-
-## 6. AI Contributor Guidelines
+## 7. AI Contributor Guidelines
 
 1. **Keep it Vanilla**: Do not introduce React/Vue/Svelte or heavy libraries. Use standard DOM manipulating patterns like `document.createElement`.
 2. **Respect the Render Loop**: ALL structural shifts to the `world` transform must be passed to `state.targetX`, `state.targetY`, and `state.targetScale`. Call `wakeUp()` to visually apply the changes. NEVER manipulate `world.style.transform` directly outside `engine.js`.

@@ -136,9 +136,15 @@
 
 /* --- Widget Highlight (khi click item trong list) --- */
 @keyframes widget-pulse {
-  0%   { box-shadow: 0 0 0 0 hsla(217, 89%, 61%, 0.5); }
-  70%  { box-shadow: 0 0 0 8px hsla(217, 89%, 61%, 0); }
-  100% { box-shadow: 0 0 0 0 hsla(217, 89%, 61%, 0); }
+  0% {
+    box-shadow: 0 0 0 0 hsla(217, 89%, 61%, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px hsla(217, 89%, 61%, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsla(217, 89%, 61%, 0);
+  }
 }
 .widget-highlight {
   animation: widget-pulse 0.6s ease 2;
