@@ -1,0 +1,18 @@
+{
+  "name": "Just A Board",
+  "short_name": "Board",
+  "start_url": ".",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay"],
+  "theme_color": "#1c1c1c",
+  "background_color": "#1c1c1c",
+  "description": "Infinite Canvas Board",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "144x144 192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
