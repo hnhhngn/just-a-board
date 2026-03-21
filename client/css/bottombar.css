@@ -36,6 +36,21 @@
   background: var(--color-hover);
 }
 
+/* Save Indicator đặc thù (không nền) */
+#saveIndicatorBtn {
+  background: none;
+  border: none;
+  box-shadow: none;
+  opacity: 0.5;
+  transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
+}
+
+#saveIndicatorBtn:hover {
+  background: none;
+  opacity: 1 !important;
+  transform: scale(1.1);
+}
+
 /* --- Zoom Dropdown --- */
 .zoom-dropdown {
   position: absolute;

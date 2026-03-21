@@ -1,12 +1,30 @@
-import { state } from '../state.js';
-
 /**
  * Quản lý Undo/Redo stack theo Command Pattern.
  */
 export class CommandManager {
-  constructor() {
+  constructor(onChange) {
     this.undoStack = [];
     this.redoStack = [];
+    this.saveCursor = 0;
+    this.onChange = onChange;
+  }
+
+  isDirty() {
+    return this.undoStack.length !== this.saveCursor;
+  }
+
+  markSaved() {
+    this.saveCursor = this.undoStack.length;
+    this._notify();
+  }
+
+  markUnsaved() {
+    this.saveCursor = -1; // Cắm mốc giả -1 để lúc nào file cũng trạng thái bị móp cờ Dirty
+    this._notify();
+  }
+
+  _notify() {
+    if (this.onChange) this.onChange(this.isDirty());
   }
 
   /**
@@ -16,8 +34,7 @@ export class CommandManager {
     command.execute();
     this.undoStack.push(command);
     this.redoStack = []; // Hành động mới → xóa sạch redo
-    state.hasUnsavedChanges = true;
-    state.needsLocalBackup = true;
+    this._notify();
   }
 
   /**
@@ -27,8 +44,7 @@ export class CommandManager {
   record(command) {
     this.undoStack.push(command);
     this.redoStack = [];
-    state.hasUnsavedChanges = true;
-    state.needsLocalBackup = true;
+    this._notify();
   }
 
   undo() {
@@ -36,8 +52,7 @@ export class CommandManager {
     if (!cmd) return;
     cmd.undo();
     this.redoStack.push(cmd);
-    state.hasUnsavedChanges = true;
-    state.needsLocalBackup = true;
+    this._notify();
   }
 
   redo() {
@@ -45,8 +60,7 @@ export class CommandManager {
     if (!cmd) return;
     cmd.execute();
     this.undoStack.push(cmd);
-    state.hasUnsavedChanges = true;
-    state.needsLocalBackup = true;
+    this._notify();
   }
 
   /**
@@ -55,5 +69,7 @@ export class CommandManager {
   clear() {
     this.undoStack = [];
     this.redoStack = [];
+    this.saveCursor = 0;
+    this._notify();
   }
 }

@@ -16,12 +16,21 @@ const viewport = document.getElementById('viewport');
 const world = document.getElementById('world');
 
 // --- KHỞI TẠO CORE ---
-const commandManager = new CommandManager();
+const commandManager = new CommandManager(async (isDirty) => {
+  state.hasUnsavedChanges = isDirty;
+  updateTitle(); // Cũng kích hoạt update indicator
+  // Auto-Save tức thì (0ms) khi có bất kỳ thay đổi nào (thay thế vòng lặp setInterval cũ)
+  if (isDirty && state.currentBoardId) {
+    const json = await serialize(state.objects);
+    const backupObj = { timestamp: Date.now(), data: json };
+    localStorage.setItem(`jab-hot-exit-${state.currentBoardId}`, JSON.stringify(backupObj));
+  }
+});
 initEngine(world);
 
 // --- KHỞI TẠO HUD ---
-const toolbar = initFloatingToolbar({ onSave: handleSave });
-const bottomBar = initBottomBar();
+const toolbar = initFloatingToolbar({});
+const bottomBar = initBottomBar({ onSave: handleSave });
 const objectList = initObjectList();
 
 initViewport(viewport, world, commandManager);
@@ -72,17 +81,6 @@ async function initializeData() {
 
   await sidebar.setCurrentBoard(state.currentBoardId);
   await loadCurrentBoard();
-
-  // Khởi động vòng lặp Auto-Backup Hot Exit (3s/lần)
-  setInterval(async () => {
-    if (state.needsLocalBackup && state.currentBoardId) {
-      state.needsLocalBackup = false; // Reset cờ Debounce
-      const json = await serialize(state.objects);
-      const backupObj = { timestamp: Date.now(), data: json };
-      localStorage.setItem(`jab-hot-exit-${state.currentBoardId}`, JSON.stringify(backupObj));
-      updateTitle(); // Thêm dấu sao * vào title
-    }
-  }, 3000);
 }
 
 // --- QUẢN LÝ BOARD ---
@@ -91,7 +89,10 @@ async function updateTitle() {
   const boards = await getIndex();
   const board = boards.find((b) => b.id === state.currentBoardId);
   const name = board ? board.name : 'Just a board';
-  document.title = (state.hasUnsavedChanges ? '* ' : '') + name;
+  document.title = name; // Bỏ dấu sao * và chữ Đã lưu nhảm rác ở Title
+  
+  if (sidebar?.setDirtyIndicator) sidebar.setDirtyIndicator(state.hasUnsavedChanges);
+  if (bottomBar?.setDirtyIndicator) bottomBar.setDirtyIndicator(state.hasUnsavedChanges);
 }
 
 async function loadCurrentBoard() {
@@ -111,9 +112,7 @@ async function loadCurrentBoard() {
       if (hotExitObj.timestamp > serverTimestamp) {
         console.log("Phục hồi nội dung từ Bản nháp (Hot Exit)!");
         deserialize(hotExitObj.data, world);
-        state.hasUnsavedChanges = true;
-        state.needsLocalBackup = false;
-        updateTitle();
+        commandManager.markUnsaved(); // Đóng thẻ "Cần lưu"
         return;
       }
     } catch(e) {
@@ -124,10 +123,7 @@ async function loadCurrentBoard() {
   // Nếu không có nháp hoặc Server mới hơn
   const data = await load(state.currentBoardId);
   if (data) deserialize(data, world);
-  state.hasUnsavedChanges = false;
-  state.needsLocalBackup = false;
-  
-  updateTitle();
+  commandManager.markSaved(); // Tuyên bố Bảng sạch sẽ
 }
 
 function clearCurrentBoard() {
@@ -136,8 +132,6 @@ function clearCurrentBoard() {
   state.objects.length = 0;
   clearGrid();
   commandManager.clear();
-  state.hasUnsavedChanges = false;
-  state.needsLocalBackup = false;
 }
 
 async function switchBoard(boardId) {
@@ -164,8 +158,7 @@ async function saveCurrentBoard() {
   
   // Xóa bản nháp trên Local vì Server đã đồng bộ
   localStorage.removeItem(`jab-hot-exit-${state.currentBoardId}`);
-  state.hasUnsavedChanges = false;
-  state.needsLocalBackup = false;
+  commandManager.markSaved(); // Vô hình chung tắt luôn dấu sao *
 }
 
 // --- PHÍM TẮT ---
@@ -202,19 +195,9 @@ window.addEventListener('keydown', (e) => {
 async function handleSave() {
   try {
     await saveCurrentBoard();
-    document.title = '✓ Đã lưu!';
-    
-    // Lưu lại ID hiện tại để đề phòng user đổi tab quá nhanh
-    const savedId = state.currentBoardId;
-
-    setTimeout(async () => {
-      // Chỉ update lại tên cũ nếu chưa switch sang tab khác
-      if (state.currentBoardId !== savedId) return;
-      updateTitle();
-    }, 2000);
+    updateTitle();
   } catch (err) {
     console.error('Lỗi khi lưu:', err);
-    document.title = '✗ Lưu thất bại!';
-    setTimeout(() => (document.title = 'Just a board'), 2000);
+    alert("Máy chủ từ chối lưu! Lỗi nội bộ.");
   }
 }

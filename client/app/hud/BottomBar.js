@@ -6,6 +6,8 @@ const SETTINGS_KEY = 'jab-settings';
 const ICONS = {
   gear: `<svg width="18" height="18"><use href="assets/icons/sprite.svg#icon-settings"></use></svg>`,
   sun: `<svg width="16" height="16"><use href="assets/icons/sprite.svg#icon-theme"></use></svg>`,
+  unsaved: `<svg width="18" height="18"><use href="assets/icons/sprite.svg#icon-save"></use></svg>`,
+  saved: `<svg width="18" height="18"><use href="assets/icons/sprite.svg#icon-check"></use></svg>`,
 };
 
 // --- Helpers: localStorage cho settings ---
@@ -34,7 +36,7 @@ function saveSettings() {
 /**
  * Khởi tạo Bottom Bar (Zoom + Settings).
  */
-export function initBottomBar() {
+export function initBottomBar({ onSave } = {}) {
   // Load settings trước khi dựng UI
   loadSettings();
 
@@ -49,6 +51,9 @@ export function initBottomBar() {
   const container = document.createElement('div');
   container.className = 'bottom-controls';
   container.innerHTML = `
+    <button class="bottom-btn icon-only" id="saveIndicatorBtn" title="Đã lưu toàn bộ">
+      ${ICONS.saved}
+    </button>
     <div style="position: relative;">
       <button class="bottom-btn" id="zoomToggle">100%</button>
       <div class="zoom-dropdown" id="zoomMenu">
@@ -104,6 +109,12 @@ export function initBottomBar() {
   `;
 
   document.body.appendChild(container);
+
+  // ========== SAVE STATUS ==========
+  const saveBtn = container.querySelector('#saveIndicatorBtn');
+  saveBtn.addEventListener('click', () => {
+    if (onSave) onSave();
+  });
 
   // ========== ZOOM ==========
   const zoomBtn = container.querySelector('#zoomToggle');
@@ -234,5 +245,20 @@ export function initBottomBar() {
   settingsMenu.addEventListener('pointerdown', (e) => e.stopPropagation());
   settingsMenu.addEventListener('click', (e) => e.stopPropagation());
 
-  return { updateZoomText };
+  return { 
+    updateZoomText,
+    setDirtyIndicator(isDirty) {
+      if (isDirty) {
+        saveBtn.innerHTML = ICONS.unsaved;
+        saveBtn.title = "Nội dung thay đổi (Ctrl+S)";
+        saveBtn.style.opacity = '1';
+        saveBtn.style.color = '';
+      } else {
+        saveBtn.innerHTML = ICONS.saved;
+        saveBtn.title = "Đã lưu bản vẽ";
+        saveBtn.style.opacity = '0.8';
+        saveBtn.style.color = 'var(--color-accent)';
+      }
+    }
+  };
 }

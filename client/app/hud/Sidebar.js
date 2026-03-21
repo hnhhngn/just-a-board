@@ -45,6 +45,7 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
 
   let isOpen = false;
   let _currentBoardId = currentBoardId;
+  let _currentIsDirty = false;
 
   function updateTitleText(title) {
     titleText.textContent = title;
@@ -140,7 +141,7 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
           <span class="board-icon">
             <svg width="14" height="14"><use href="assets/icons/sprite.svg#icon-board"></use></svg>
           </span>
-          <span class="board-name">${escapeHtml(board.name)}</span>
+          <span class="board-name" data-basename="${escapeHtml(board.name)}">${escapeHtml(board.name)}${(board.id === _currentBoardId && _currentIsDirty) ? ' *' : ''}</span>
         </div>
         <button class="board-delete" title="Xóa Board">
           <svg width="14" height="14"><use href="assets/icons/sprite.svg#icon-trash"></use></svg>
@@ -181,11 +182,20 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
     refreshList,
     async setCurrentBoard(id) {
       _currentBoardId = id;
+      _currentIsDirty = false; // reset
       const boards = await getIndex();
       const currentInfo = boards.find((b) => b.id === id);
       if (currentInfo && !isEditingTitle) {
         updateTitleText(currentInfo.name);
       }
     },
+    setDirtyIndicator(isDirty) {
+      _currentIsDirty = isDirty;
+      const activeNameSpan = sidebar.querySelector('.board-item.active .board-name');
+      if (activeNameSpan) {
+        const base = activeNameSpan.getAttribute('data-basename');
+        if (base) activeNameSpan.textContent = isDirty ? base + ' *' : base;
+      }
+    }
   };
 }

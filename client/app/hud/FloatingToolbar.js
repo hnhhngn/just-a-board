@@ -4,7 +4,6 @@ const ICONS = {
   select: `<svg width="18" height="18"><use href="assets/icons/sprite.svg#icon-pointer"></use></svg>`,
   note: `<svg width="18" height="18"><use href="assets/icons/sprite.svg#icon-note"></use></svg>`,
   shape: `<svg width="18" height="18"><use href="assets/icons/sprite.svg#icon-shape"></use></svg>`,
-  save: `<svg width="18" height="18"><use href="assets/icons/sprite.svg#icon-save"></use></svg>`,
   menu: `<svg width="18" height="18"><use href="assets/icons/sprite.svg#icon-menu"></use></svg>`,
 };
 
@@ -28,11 +27,6 @@ export function initFloatingToolbar({ onSave }) {
         ${ICONS.shape}
         <div class="tool-tooltip">Hình khối <span>S</span></div>
       </button>
-      <div class="toolbar-divider"></div>
-      <button class="tool-btn" data-action="save">
-        ${ICONS.save}
-        <div class="tool-tooltip">Lưu <span>Ctrl+S</span></div>
-      </button>
     </div>
   `;
 
@@ -48,14 +42,6 @@ export function initFloatingToolbar({ onSave }) {
       setTool(btn.dataset.tool);
     });
   });
-
-  // Save button
-  container
-    .querySelector('[data-action="save"]')
-    .addEventListener("click", (e) => {
-      e.stopPropagation();
-      onSave();
-    });
 
   function setTool(tool) {
     state.activeTool = tool;

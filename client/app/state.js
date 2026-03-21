@@ -48,6 +48,5 @@ export const state = {
   currentBoardId: null,
 
   // Hot Exit & Sync
-  hasUnsavedChanges: false, // Để so sánh với Server
-  needsLocalBackup: false,  // Để kích hoạt vòng lặp Debounce
+  hasUnsavedChanges: false, // Để so sánh với Server, tính qua isDirty()
 };

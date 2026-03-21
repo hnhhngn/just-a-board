@@ -90,4 +90,9 @@
     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
   </symbol>
 
+  <!-- BottomBar: Check (Saved) -->
+  <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </symbol>
+
 </svg>
