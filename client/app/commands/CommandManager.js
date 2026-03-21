@@ -1,3 +1,5 @@
+import { state } from '../state.js';
+
 /**
  * Quản lý Undo/Redo stack theo Command Pattern.
  */
@@ -14,6 +16,8 @@ export class CommandManager {
     command.execute();
     this.undoStack.push(command);
     this.redoStack = []; // Hành động mới → xóa sạch redo
+    state.hasUnsavedChanges = true;
+    state.needsLocalBackup = true;
   }
 
   /**
@@ -23,6 +27,8 @@ export class CommandManager {
   record(command) {
     this.undoStack.push(command);
     this.redoStack = [];
+    state.hasUnsavedChanges = true;
+    state.needsLocalBackup = true;
   }
 
   undo() {
@@ -30,6 +36,8 @@ export class CommandManager {
     if (!cmd) return;
     cmd.undo();
     this.redoStack.push(cmd);
+    state.hasUnsavedChanges = true;
+    state.needsLocalBackup = true;
   }
 
   redo() {
@@ -37,6 +45,8 @@ export class CommandManager {
     if (!cmd) return;
     cmd.execute();
     this.undoStack.push(cmd);
+    state.hasUnsavedChanges = true;
+    state.needsLocalBackup = true;
   }
 
   /**

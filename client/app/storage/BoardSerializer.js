@@ -10,7 +10,6 @@ import { ShapeWidget } from '../widgets/ShapeWidget.js';
  * Async vì ImageWidget cần chuyển blob → base64.
  */
 export async function serialize(objects) {
-  // TODO: Tách base64 image sang endpoint riêng (/api/images) để tránh file JSON của board quá lớn
   const data = [];
   for (const obj of objects) {
     data.push(await obj.serialize());

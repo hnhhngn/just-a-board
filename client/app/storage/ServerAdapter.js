@@ -16,7 +16,14 @@ async function fetchWithErr(url, options) {
  */
 export async function getIndex() {
     const res = await fetchWithErr(API_URL);
-    return await res.json();
+    const text = await res.text();
+    if (!text || text.trim() === '') return [];
+    try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+    } catch (e) {
+        return [];
+    }
 }
 
 /**
@@ -28,7 +35,8 @@ export async function create(name = 'Board mới') {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
     });
-    return await res.json();
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
 }
 
 /**
@@ -38,6 +46,9 @@ export async function remove(id) {
     await fetchWithErr(`${API_URL}/${id}`, {
         method: 'DELETE'
     });
+    
+    // Thu dọn bản nháp thừa lỡ như có Hot Exit
+    localStorage.removeItem(`jab-hot-exit-${id}`);
 }
 
 /**
@@ -57,7 +68,8 @@ export async function save(id, jsonString) {
 export async function load(id) {
     // Trả về dạng JSON string chứ chưa parse vì BoardSerializer lo parse
     const res = await fetchWithErr(`${API_URL}/${id}`);
-    return await res.text();
+    const text = await res.text();
+    return text || "[]";
 }
 
 /**

@@ -46,4 +46,8 @@ export const state = {
   // HUD & Tools
   activeTool: 'select', // 'select' | 'note' | 'shape'
   currentBoardId: null,
+
+  // Hot Exit & Sync
+  hasUnsavedChanges: false, // Để so sánh với Server
+  needsLocalBackup: false,  // Để kích hoạt vòng lặp Debounce
 };

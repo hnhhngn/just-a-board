@@ -1,17 +1,25 @@
 import { BaseWidget } from './BaseWidget.js';
 
 /**
- * Chuyển blob URL thành data URL (base64) để lưu trữ.
+ * Lazy upload: Nếu phát hiện Blob URL, đẩy mảng bytes lên Server,
+ * sau đó đổi source thành Server URL (/images/...) để Serialize cực nhẹ.
  */
-async function toDataUrl(src) {
-  if (src.startsWith('data:')) return src;
+async function ensureUploaded(src) {
+  if (!src.startsWith('blob:')) return src; // Đã upload rồi, hoặc là data url cũ
+  
   const res = await fetch(src);
   const blob = await res.blob();
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
+  
+  // POST file bin lên endpoint /api/images
+  const uploadRes = await fetch('/api/images', {
+    method: 'POST',
+    body: blob
   });
+  
+  if (!uploadRes.ok) throw new Error('Upload failed');
+  const data = await uploadRes.json();
+  
+  return data.url;
 }
 
 export class ImageWidget extends BaseWidget {
@@ -44,10 +52,14 @@ export class ImageWidget extends BaseWidget {
   }
 
   async serialize() {
-    const src = await toDataUrl(this.element.src);
+    // Lấy link gốc bằng getAttribute để tránh DOM tự ép thành http://localhost...
+    const currentSrc = this.element.getAttribute('src') || this.element.src;
+    const serverUrl = await ensureUploaded(currentSrc);
+    this.element.setAttribute('src', serverUrl);
+
     return {
       ...super.serialize(),
-      src,
+      src: serverUrl,
     };
   }
 }

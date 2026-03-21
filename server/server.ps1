@@ -18,6 +18,29 @@ Write-Host "Server running at http://localhost:$port/" -ForegroundColor Green
 Write-Host "Press Ctrl+C to stop."
 
 # Helpers
+function Write-JsonSafe($path, $contentStr) {
+    $r = 0; $done = $false
+    while (-not $done -and $r -lt 10) {
+        try {
+            [System.IO.File]::WriteAllText($path, $contentStr, [System.Text.Encoding]::UTF8)
+            $done = $true
+        } catch { $r++; Start-Sleep -Milliseconds 50 }
+    }
+    if (-not $done) { Write-Host "Write Error on $path : $($_.Exception.Message)" -ForegroundColor Red }
+}
+
+function Read-JsonSafe($path) {
+    if (-not (Test-Path $path)) { return $null }
+    $r = 0; $res = $null
+    while ($r -lt 10) {
+        try {
+            $res = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+            break
+        } catch { $r++; Start-Sleep -Milliseconds 50 }
+    }
+    return $res
+}
+
 function Send-Response($response, $statusCode, $contentType, $contentStr, $contentBytes) {
     $response.StatusCode = $statusCode
     $response.ContentType = $contentType
@@ -62,6 +85,11 @@ try {
         }
 
         try {
+            # --- SELF HEALING: Tự chữa lành Database nếu bị xóa nóng lúc server đang chạy ---
+            if (!(Test-Path $dataDir)) { New-Item -ItemType Directory -Force -Path $dataDir | Out-Null }
+            if (!(Test-Path $boardsDir)) { New-Item -ItemType Directory -Force -Path $boardsDir | Out-Null }
+            if (!(Test-Path $indexFile)) { Write-JsonSafe $indexFile "[]" }
+
             # --- ROUTING CHO API ---
             if ($urlPath -match "^/api/boards") {
                 $id = $null
@@ -72,7 +100,7 @@ try {
 
                 if ($request.HttpMethod -eq "GET" -and -not $id) {
                     # Lấy danh sách boards
-                    $indexStr = Get-Content -Path $indexFile -Raw -Encoding UTF8
+                    $indexStr = Read-JsonSafe $indexFile
                     Send-Response $response 200 "application/json" $indexStr $null
                 }
                 elseif ($request.HttpMethod -eq "POST" -and -not $id) {
@@ -81,12 +109,12 @@ try {
                     $bodyObj = $bodyRaw | ConvertFrom-Json
                     
                     # Đọc index hiện tại
-                    $indexStr = Get-Content -Path $indexFile -Raw -Encoding UTF8
+                    $indexStr = Read-JsonSafe $indexFile
                     $indexObj = $indexStr | ConvertFrom-Json
-                    # LƯU Ý 2: Bug PowerShell ép mảng 1 item thành object
-                    if ($null -eq $indexObj) { $tempArray = @() }
-                    elseif ($indexObj -isnot [System.Array]) { $tempArray = @($indexObj) }
-                    else { $tempArray = [System.Collections.ArrayList]::new($indexObj) }
+                    
+                    if ($null -eq $indexObj) { $tempArray = [object[]]@() }
+                    elseif ($indexObj -is [System.Array]) { $tempArray = [object[]]$indexObj }
+                    else { $tempArray = [object[]]@($indexObj) }
 
                     $newId = [guid]::NewGuid().ToString().Substring(0, 8)
                     # Lấy Timestamp milliseconds
@@ -97,18 +125,14 @@ try {
                         name = $bodyObj.name
                         lastModified = $timestamp
                     }
-                    if ($tempArray -is [System.Collections.ArrayList]) {
-                         $tempArray.Add($newBoard) | Out-Null
-                    } else {
-                         $tempArray += $newBoard
-                    }
+                    $tempArray += $newBoard
                     
                     # Convert object back to array JSON LƯU Ý 1: bảo vệ UTF8
-                    $newIndexStr = $tempArray | ConvertTo-Json -Depth 5 -Compress
-                    Set-Content -Path $indexFile -Value $newIndexStr -Encoding UTF8
+                    $newIndexStr = ConvertTo-Json -InputObject $tempArray -Depth 5 -Compress
+                    Write-JsonSafe $indexFile $newIndexStr
                     
                     # Khởi tạo data board file rỗng "[]"
-                    Set-Content -Path "$boardsDir\$newId.json" -Value "[]" -Encoding UTF8
+                    Write-JsonSafe "$boardsDir\$newId.json" "[]"
                     
                     Send-Response $response 201 "application/json" ($newBoard | ConvertTo-Json -Compress) $null
                 }
@@ -116,7 +140,7 @@ try {
                     # Đọc nội dung board
                     $dataFile = "$boardsDir\$id.json"
                     if (Test-Path $dataFile) {
-                        $dataStr = Get-Content -Path $dataFile -Raw -Encoding UTF8
+                        $dataStr = Read-JsonSafe $dataFile
                         Send-Response $response 200 "application/json" $dataStr $null
                     } else {
                         Send-Response $response 404 "application/json" '{"error":"Board not found"}' $null
@@ -126,19 +150,30 @@ try {
                     # Ghi nội dung board (DÙNG RAW STRING để tránh lỗi ConvertFrom-Json bị giới hạn và lỗi ép type)
                     $bodyRaw = Get-RequestBody $request
                     $dataFile = "$boardsDir\$id.json"
-                    Set-Content -Path $dataFile -Value $bodyRaw -Encoding UTF8
+                    $tmpFile = "$boardsDir\$id.tmp.json"
+                    
+                    # Shadow Copy: Ghi nháp ra file temp, nếu thành công mới replace file gốc
+                    Write-JsonSafe $tmpFile $bodyRaw
+                    # Dùng Retry Loop cho File Replace luôn vì đôi khi Defender lock move-item
+                    $m=0; $md=$false
+                    while(-not $md -and $m -lt 10) {
+                        try { Move-Item -Path $tmpFile -Destination $dataFile -Force; $md=$true }
+                        catch { $m++; Start-Sleep -Milliseconds 50 }
+                    }
                     
                     # Update index modified time
-                    $indexStr = Get-Content -Path $indexFile -Raw -Encoding UTF8
+                    $indexStr = Read-JsonSafe $indexFile
                     $indexObj = $indexStr | ConvertFrom-Json
-                    if ($null -eq $indexObj) { $indexObj = @() }
-                    if ($indexObj -isnot [System.Array]) { $indexObj = @($indexObj) }
+                    
+                    if ($null -eq $indexObj) { $indexObj = [object[]]@() }
+                    elseif ($indexObj -is [System.Array]) { $indexObj = [object[]]$indexObj }
+                    else { $indexObj = [object[]]@($indexObj) }
                     
                     $timestamp = [Math]::Floor([decimal](Get-Date (Get-Date).ToUniversalTime() -UFormat "%s") * 1000)
                     foreach ($item in $indexObj) {
                         if ($item.id -eq $id) { $item.lastModified = $timestamp; break }
                     }
-                    Set-Content -Path $indexFile -Value ($indexObj | ConvertTo-Json -Depth 5 -Compress) -Encoding UTF8
+                    Write-JsonSafe $indexFile (ConvertTo-Json -InputObject $indexObj -Depth 5 -Compress)
                     
                     Send-Response $response 200 "application/json" '{"success":true}' $null
                 }
@@ -147,40 +182,107 @@ try {
                     $bodyRaw = Get-RequestBody $request
                     $bodyObj = $bodyRaw | ConvertFrom-Json
                     
-                    $indexStr = Get-Content -Path $indexFile -Raw -Encoding UTF8
+                    $indexStr = Read-JsonSafe $indexFile
                     $indexObj = $indexStr | ConvertFrom-Json
-                    if ($null -eq $indexObj) { $indexObj = @() }
-                    if ($indexObj -isnot [System.Array]) { $indexObj = @($indexObj) }
+                    
+                    if ($null -eq $indexObj) { $indexObj = [object[]]@() }
+                    elseif ($indexObj -is [System.Array]) { $indexObj = [object[]]$indexObj }
+                    else { $indexObj = [object[]]@($indexObj) }
                     
                     foreach ($item in $indexObj) {
                         if ($item.id -eq $id) { $item.name = $bodyObj.name; break }
                     }
-                    Set-Content -Path $indexFile -Value ($indexObj | ConvertTo-Json -Depth 5 -Compress) -Encoding UTF8
+                    Write-JsonSafe $indexFile (ConvertTo-Json -InputObject $indexObj -Depth 5 -Compress)
                     
                     Send-Response $response 200 "application/json" '{"success":true}' $null
                 }
                 elseif ($request.HttpMethod -eq "DELETE" -and $id) {
-                    # Xóa board
+                    # Xóa board VÀ Dọn dẹp mảng ảnh (Garbage Collector) bằng System.IO
                     $dataFile = "$boardsDir\$id.json"
-                    if (Test-Path $dataFile) { Remove-Item -Path $dataFile -Force }
+                    if (Test-Path $dataFile) {
+                        try {
+                            # Đọc text bằng .NET để nhả Handle tức thì
+                            $bData = [System.IO.File]::ReadAllText($dataFile)
+                            if ($bData) {
+                                $matches = [regex]::Matches($bData, '"(?:src|url)"\s*:\s*"[^"]*/images/([^"]+)"')
+                                foreach ($match in $matches) {
+                                    $imgName = $match.Groups[1].Value
+                                    $imgPath = "$dataDir\images\$imgName"
+                                    if (Test-Path $imgPath) { 
+                                        $rImg = 0; $dImg = $false
+                                        while (-not $dImg -and $rImg -lt 10) {
+                                            try { [System.IO.File]::Delete($imgPath); $dImg = $true } 
+                                            catch { $rImg++; Start-Sleep -Milliseconds 50 }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch {}
+                        
+                        $retryCount = 0
+                        $maxRetries = 10
+                        $deleted = $false
+                        while (-not $deleted -and $retryCount -lt $maxRetries) {
+                            try {
+                                [System.IO.File]::Delete($dataFile)
+                                $deleted = $true
+                            } catch { 
+                                $retryCount++
+                                if ($retryCount -ge $maxRetries) {
+                                    Write-Host "FAILED TO DELETE JSON ($dataFile): $($_.Exception.Message)" -ForegroundColor Red 
+                                } else {
+                                    Start-Sleep -Milliseconds 50
+                                }
+                            }
+                        }
+                    }
+                    
+                    # Dọn dẹp cả file Hot Exit rác nếu có
+                    $tmpFile = "$boardsDir\$id.tmp.json"
+                    if (Test-Path $tmpFile) {
+                        try { [System.IO.File]::Delete($tmpFile) } catch {}
+                    }
                     
                     $indexStr = Get-Content -Path $indexFile -Raw -Encoding UTF8
                     $indexObj = $indexStr | ConvertFrom-Json
-                    if ($null -eq $indexObj) { $indexObj = @() }
-                    if ($indexObj -isnot [System.Array]) { $indexObj = @($indexObj) }
+                    
+                    if ($null -eq $indexObj) { $indexObj = [object[]]@() }
+                    elseif ($indexObj -is [System.Array]) { $indexObj = [object[]]$indexObj }
+                    else { $indexObj = [object[]]@($indexObj) }
                     
                     # Tạo array mới không chứa item bị xóa
-                    $newArray = @()
+                    $newArray = [object[]]@()
                     foreach ($item in $indexObj) {
                         if ($item.id -ne $id) { $newArray += $item }
                     }
                     
-                    Set-Content -Path $indexFile -Value ($newArray | ConvertTo-Json -Depth 5 -Compress) -Encoding UTF8
+                    Write-JsonSafe $indexFile (ConvertTo-Json -InputObject $newArray -Depth 5 -Compress)
                     Send-Response $response 200 "application/json" '{"success":true}' $null
                 }
                 else {
                     Send-Response $response 405 "text/plain" "Method Not Allowed" $null
                 }
+            }
+            elseif ($request.HttpMethod -eq "POST" -and $urlPath -eq "/api/images") {
+                # Upload ảnh độc lập
+                $imagesDir = "$dataDir\images"
+                if (!(Test-Path $imagesDir)) { New-Item -ItemType Directory -Force -Path $imagesDir | Out-Null }
+                
+                $newId = [guid]::NewGuid().ToString().Substring(0, 8)
+                $fileName = "img_$newId.png"
+                $filePath = "$imagesDir\$fileName"
+                
+                # Đọc mảng bytes từ HTTP Request và ghi vào ổ đĩa
+                if ($request.HasEntityBody) {
+                    $stream = $request.InputStream
+                    $fileStream = [System.IO.File]::Create($filePath)
+                    $stream.CopyTo($fileStream)
+                    $fileStream.Close()
+                    $stream.Close()
+                }
+                
+                $result = @{ url = "/images/$fileName" }
+                Send-Response $response 201 "application/json" ($result | ConvertTo-Json -Compress) $null
             }
             # --- ROUTING STATIC FILES ---
             else {
@@ -188,10 +290,16 @@ try {
                 
                 # Giải mã URL (ví dụ: %20 -> khoảng trắng)
                 $urlPathDecoded = [System.Uri]::UnescapeDataString($urlPath)
+                $relativePath = $urlPathDecoded.Replace("/", "\").TrimStart('\')
                 
                 # Nối đường dẫn an toàn
-                $relativePath = $urlPathDecoded.Replace("/", "\").TrimStart('\')
-                $filePath = Join-Path -Path $clientDir -ChildPath $relativePath
+                if ($urlPathDecoded -match "^/images/") {
+                    $imagesDir = "$dataDir\images"
+                    $fileName = Split-Path $relativePath -Leaf
+                    $filePath = Join-Path -Path $imagesDir -ChildPath $fileName
+                } else {
+                    $filePath = Join-Path -Path $clientDir -ChildPath $relativePath
+                }
                 
                 if (Test-Path $filePath -PathType Leaf) {
                     $ext = [System.IO.Path]::GetExtension($filePath).ToLower()

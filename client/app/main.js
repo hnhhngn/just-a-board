@@ -38,10 +38,16 @@ const sidebar = initSidebar({
   },
   onBoardDelete: async (id) => {
     await remove(id);
-    // Nếu xóa board đang mở → chuyển sang board đầu tiên
+    // Nếu xóa board đang mở → chuyển sang board đầu tiên (ngăn Tái sinh rác)
     if (id === state.currentBoardId) {
+      state.currentBoardId = null; // NGẮT SAVE AUTO!
       const boards = await getIndex();
-      if (boards.length > 0) await switchBoard(boards[0].id);
+      if (boards.length > 0) {
+        await switchBoard(boards[0].id);
+      } else {
+        clearCurrentBoard();
+        document.title = 'Just a board';
+      }
     }
   },
   onBoardRename: async (id, newName) => {
@@ -66,15 +72,62 @@ async function initializeData() {
 
   await sidebar.setCurrentBoard(state.currentBoardId);
   await loadCurrentBoard();
+
+  // Khởi động vòng lặp Auto-Backup Hot Exit (3s/lần)
+  setInterval(async () => {
+    if (state.needsLocalBackup && state.currentBoardId) {
+      state.needsLocalBackup = false; // Reset cờ Debounce
+      const json = await serialize(state.objects);
+      const backupObj = { timestamp: Date.now(), data: json };
+      localStorage.setItem(`jab-hot-exit-${state.currentBoardId}`, JSON.stringify(backupObj));
+      updateTitle(); // Thêm dấu sao * vào title
+    }
+  }, 3000);
 }
 
 // --- QUẢN LÝ BOARD ---
 
+async function updateTitle() {
+  const boards = await getIndex();
+  const board = boards.find((b) => b.id === state.currentBoardId);
+  const name = board ? board.name : 'Just a board';
+  document.title = (state.hasUnsavedChanges ? '* ' : '') + name;
+}
+
 async function loadCurrentBoard() {
-  const data = await load(state.currentBoardId);
-  if (data) {
-    deserialize(data, world);
+  const hotExitKey = `jab-hot-exit-${state.currentBoardId}`;
+  const hotExitRaw = localStorage.getItem(hotExitKey);
+
+  // Lấy timestamp từ Server (index)
+  const boards = await getIndex();
+  const boardInfo = boards.find((b) => b.id === state.currentBoardId);
+  const serverTimestamp = boardInfo ? boardInfo.lastModified : 0;
+
+  if (hotExitRaw) {
+    try {
+      const hotExitObj = JSON.parse(hotExitRaw);
+      
+      // Chỉ nạp Hot Exit nếu Local thao tác GẦN ĐÂY HƠN bản lưu trên Server
+      if (hotExitObj.timestamp > serverTimestamp) {
+        console.log("Phục hồi nội dung từ Bản nháp (Hot Exit)!");
+        deserialize(hotExitObj.data, world);
+        state.hasUnsavedChanges = true;
+        state.needsLocalBackup = false;
+        updateTitle();
+        return;
+      }
+    } catch(e) {
+      console.warn("Dữ liệu nháp lỗi, tiến hành nạp từ Server");
+    }
   }
+
+  // Nếu không có nháp hoặc Server mới hơn
+  const data = await load(state.currentBoardId);
+  if (data) deserialize(data, world);
+  state.hasUnsavedChanges = false;
+  state.needsLocalBackup = false;
+  
+  updateTitle();
 }
 
 function clearCurrentBoard() {
@@ -83,6 +136,8 @@ function clearCurrentBoard() {
   state.objects.length = 0;
   clearGrid();
   commandManager.clear();
+  state.hasUnsavedChanges = false;
+  state.needsLocalBackup = false;
 }
 
 async function switchBoard(boardId) {
@@ -98,16 +153,19 @@ async function switchBoard(boardId) {
   state.currentBoardId = boardId;
   await sidebar.setCurrentBoard(boardId);
   await loadCurrentBoard();
-
+  
   // 4. Cập nhật tiêu đề
-  const boards = await getIndex();
-  const board = boards.find((b) => b.id === boardId);
-  document.title = board ? board.name : 'Just a board';
+  updateTitle();
 }
 
 async function saveCurrentBoard() {
   const json = await serialize(state.objects);
   await save(state.currentBoardId, json);
+  
+  // Xóa bản nháp trên Local vì Server đã đồng bộ
+  localStorage.removeItem(`jab-hot-exit-${state.currentBoardId}`);
+  state.hasUnsavedChanges = false;
+  state.needsLocalBackup = false;
 }
 
 // --- PHÍM TẮT ---
@@ -152,10 +210,7 @@ async function handleSave() {
     setTimeout(async () => {
       // Chỉ update lại tên cũ nếu chưa switch sang tab khác
       if (state.currentBoardId !== savedId) return;
-
-      const boards = await getIndex();
-      const board = boards.find((b) => b.id === savedId);
-      document.title = board ? board.name : 'Just a board';
+      updateTitle();
     }, 2000);
   } catch (err) {
     console.error('Lỗi khi lưu:', err);
