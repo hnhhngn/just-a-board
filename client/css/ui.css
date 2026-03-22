@@ -1,0 +1,49 @@
+/* ============================
+   UI Primitives
+   ============================ */
+
+.app-tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(280px, calc(100vw - 20px));
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  z-index: var(--z-tooltip);
+}
+
+.app-tooltip.is-measuring {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.app-tooltip.is-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.app-tooltip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-tooltip-shortcut {
+  color: var(--color-accent);
+  font-weight: 700;
+}

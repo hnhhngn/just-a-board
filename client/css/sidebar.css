@@ -1,5 +1,5 @@
 /* ============================
-   HUD — Top Nav & Sidebar
+   HUD â€” Top Nav & Sidebar
    ============================ */
 
 .top-nav-container {
@@ -10,9 +10,6 @@
   align-items: center;
   gap: 16px;
   z-index: var(--z-hud-dock);
-  --z-rename-tooltip: 10;
-  --z-tooltip-border: 1;
-  --z-tooltip-fill: 2;
 }
 
 .sidebar-toggle-btn {
@@ -28,11 +25,11 @@
   justify-content: center;
   transition: background 0.15s ease;
 }
+
 .sidebar-toggle-btn:hover {
   background: var(--color-hover);
 }
 
-/* --- Board Title --- */
 .board-title-group {
   display: flex;
   align-items: center;
@@ -49,6 +46,7 @@
   border-radius: 6px;
   transition: background 0.15s ease;
 }
+
 .board-title-text:hover {
   background: var(--color-hover);
 }
@@ -81,63 +79,17 @@
   opacity: 0;
   pointer-events: none;
   transition: all 0.15s ease;
-  position: relative;
 }
+
 .board-title-group:hover .board-rename-btn {
   opacity: 1;
   pointer-events: auto;
 }
+
 .board-rename-btn:hover {
   background: var(--color-hover);
 }
 
-/* --- Rename Tooltip --- */
-.rename-tooltip {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%) translateY(5px);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: all 0.15s ease;
-  z-index: var(--z-rename-tooltip);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-}
-.rename-tooltip::after {
-  content: "";
-  position: absolute;
-  top: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-bottom: 5px solid var(--color-surface);
-  z-index: var(--z-tooltip-fill);
-}
-.rename-tooltip::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-bottom: 6px solid var(--color-border);
-  z-index: var(--z-tooltip-border);
-}
-.board-rename-btn:hover .rename-tooltip {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-/* --- Overlay --- */
 .sidebar-overlay {
   position: fixed;
   inset: 0;
@@ -145,11 +97,11 @@
   opacity: 0;
   pointer-events: none;
 }
+
 .sidebar-overlay.open {
   pointer-events: auto;
 }
 
-/* --- Dropdown Panel --- */
 .sidebar {
   position: fixed;
   top: 64px;
@@ -175,13 +127,13 @@
   padding: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
+
 .sidebar.open {
   transform: scale(1);
   opacity: 1;
   pointer-events: auto;
 }
 
-/* --- Create Button --- */
 .sidebar-create-btn {
   display: flex;
   align-items: center;
@@ -196,9 +148,11 @@
   transition: all 0.15s ease;
   text-align: left;
 }
+
 .sidebar-create-btn:hover {
   background: var(--color-hover);
 }
+
 .sidebar-create-btn svg {
   color: var(--color-icon);
 }
@@ -209,7 +163,6 @@
   margin: 6px 8px;
 }
 
-/* --- Board List --- */
 .board-list {
   display: flex;
   flex-direction: column;
@@ -224,9 +177,11 @@
   cursor: pointer;
   transition: background 0.15s ease;
 }
+
 .board-item:hover {
   background: var(--color-hover);
 }
+
 .board-item.active {
   background: hsla(0, 0%, 100%, 0.1);
 }
@@ -238,10 +193,12 @@
   min-width: 0;
   flex: 1;
 }
+
 .board-icon {
   color: var(--color-text-muted);
   display: flex;
 }
+
 .board-item.active .board-icon {
   color: var(--color-text);
 }
@@ -253,6 +210,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .board-item.active .board-name {
   font-weight: 600;
 }
@@ -272,9 +230,11 @@
   transition: all 0.15s ease;
   flex-shrink: 0;
 }
+
 .board-item:hover .board-delete {
   opacity: 1;
 }
+
 .board-delete:hover {
   background: hsla(0, 100%, 66%, 0.15);
   color: var(--color-danger);

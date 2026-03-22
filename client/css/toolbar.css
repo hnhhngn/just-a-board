@@ -1,5 +1,5 @@
 /* ============================
-   HUD — Floating Toolbar
+   HUD â€” Floating Toolbar
    ============================ */
 
 .toolbar-container {
@@ -42,10 +42,12 @@
   justify-content: center;
   transition: all 0.15s ease;
 }
+
 .tool-btn:hover {
   background: var(--color-hover);
   color: var(--color-text);
 }
+
 .tool-btn.active {
   background: var(--color-active);
   color: var(--color-active-fg);
@@ -53,61 +55,4 @@
 
 .tool-btn.is-dragging {
   transform: scale(0.96);
-}
-
-/* --- Tooltip --- */
-.tool-tooltip {
-  position: absolute;
-  right: calc(100% + 14px);
-  top: 50%;
-  transform: translateY(-50%) scale(0.9);
-  padding: 6px 10px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  color: var(--color-text);
-  font-size: 13px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  --z-tooltip-border: 1;
-  --z-tooltip-fill: 2;
-}
-
-.tool-tooltip::after {
-  content: "";
-  position: absolute;
-  right: -5px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-width: 5px 0 5px 5px;
-  border-style: solid;
-  border-color: transparent transparent transparent var(--color-surface);
-  z-index: var(--z-tooltip-fill);
-}
-.tool-tooltip::before {
-  content: "";
-  position: absolute;
-  right: -6px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-width: 6px 0 6px 6px;
-  border-style: solid;
-  border-color: transparent transparent transparent var(--color-border);
-  z-index: var(--z-tooltip-border);
-}
-
-.tool-btn:hover .tool-tooltip {
-  opacity: 1;
-  transform: translateY(-50%) scale(1);
-}
-
-.tool-tooltip span {
-  color: var(--color-accent);
-  font-weight: 600;
 }

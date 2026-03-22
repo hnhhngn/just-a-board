@@ -22,6 +22,8 @@ import { readClipboardContent, writeObjectsToClipboard } from './clipboard.js';
 import { getObjectsBounds, moveOrderBackward, moveOrderForward, moveOrderToBack, moveOrderToFront } from './objectActions.js';
 import { clearSelection, getPrimarySelection, getSelectedObjects, setSelection } from './selection.js';
 import { ImageWidget } from './widgets/ImageWidget.js';
+import { initFeedbackHost, notify } from './feedback/index.js';
+import { applyTooltips } from './ui/index.js';
 
 const DRAFT_PERSIST_DELAY = 250;
 
@@ -30,6 +32,8 @@ const world = document.getElementById('world');
 
 initEngine(world);
 initObjectStore(world);
+applyTooltips(document.body);
+initFeedbackHost();
 
 let draftPersistTimer = null;
 let transientEditDirty = false;
@@ -518,6 +522,10 @@ async function handleSave() {
     await saveCurrentBoard();
   } catch (error) {
     console.error('Lỗi khi lưu:', error);
-    alert('Máy chủ từ chối lưu! Lỗi nội bộ.');
+    notify({
+      tone: 'error',
+      title: 'Không thể lưu',
+      message: 'Máy chủ từ chối lưu. Vui lòng thử lại sau.',
+    });
   }
 }

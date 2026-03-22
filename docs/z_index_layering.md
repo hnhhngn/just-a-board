@@ -13,7 +13,10 @@ Defined in `client/css/tokens.css`:
 - `--z-hud-floating`: Floating HUD elements that should sit above docked HUD.
 - `--z-hud-screen-overlay`: Full-screen HUD overlays (click-catcher, modal backdrop).
 - `--z-hud-panel`: Open HUD panels/dropdowns.
+- `--z-tooltip`: Shared tooltip layer above panels.
 - `--z-menu`: Highest transient layer such as context menu.
+- `--z-toast`: Toast notifications above menus.
+- `--z-feedback-modal`: Confirm dialog and backdrop above everything else.
 
 ## Rules
 

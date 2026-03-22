@@ -1,20 +1,21 @@
+import { confirmAction, notify } from '../feedback/index.js';
+import { setTooltip } from '../ui/index.js';
+
 /**
- * Khởi tạo Sidebar (Panel Dropdown hiển thị danh sách Board).
+ * Khoi tao Sidebar (Panel Dropdown hien thi danh sach Board).
  */
 export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCreate, onBoardDelete, onBoardRename, menuIcon }) {
-  // --- Container Top Nav ---
   const topNav = document.createElement('div');
   topNav.className = 'top-nav-container';
   topNav.innerHTML = `
-    <button class="sidebar-toggle-btn" title="Menu dự án">
+    <button class="sidebar-toggle-btn" type="button" aria-label="Menu dự án" data-tooltip="Menu dự án" data-tooltip-placement="bottom">
       ${menuIcon}
     </button>
     <div class="board-title-group">
-      <span class="board-title-text" title="Đổi tên dự án">Loading...</span>
+      <span class="board-title-text">Loading...</span>
       <input type="text" class="board-title-input" style="display:none" autocomplete="off" spellcheck="false" />
-      <button class="board-rename-btn">
+      <button class="board-rename-btn" type="button" aria-label="Đổi tên dự án" data-tooltip="Đổi tên dự án" data-tooltip-placement="bottom">
         <svg width="12" height="12"><use href="assets/icons/sprite.svg#icon-rename"></use></svg>
-        <div class="rename-tooltip">Đổi tên dự án</div>
       </button>
     </div>
   `;
@@ -25,16 +26,14 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
   const titleInput = topNav.querySelector('.board-title-input');
   const renameBtn = topNav.querySelector('.board-rename-btn');
 
-  // --- Bảng Overlay để bấm ra ngoài tắt Dropdown ---
   const overlay = document.createElement('div');
   overlay.className = 'sidebar-overlay';
   document.body.appendChild(overlay);
 
-  // --- Sidebar Dropdown Menu ---
   const sidebar = document.createElement('div');
   sidebar.className = 'sidebar';
   sidebar.innerHTML = `
-    <button class="menu-item sidebar-create-btn">
+    <button class="menu-item sidebar-create-btn" type="button">
       <svg width="16" height="16"><use href="assets/icons/sprite.svg#icon-plus"></use></svg>
       <span>Tạo board mới</span>
     </button>
@@ -52,7 +51,6 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
     titleText.textContent = title;
   }
 
-  // --- Logic Rename ---
   let isEditingTitle = false;
   function startEditTitle() {
     isEditingTitle = true;
@@ -65,11 +63,18 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
     titleInput.select();
   }
 
+  function cancelEditTitle() {
+    isEditingTitle = false;
+    titleText.style.display = 'block';
+    renameBtn.style.display = '';
+    titleInput.style.display = 'none';
+  }
+
   function endEditTitle() {
     if (!isEditingTitle) return;
     isEditingTitle = false;
     let newName = titleInput.value.trim();
-    if (!newName) newName = "Untitled Board";
+    if (!newName) newName = 'Untitled Board';
 
     updateTitleText(newName);
     titleText.style.display = 'block';
@@ -78,7 +83,7 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
 
     if (onBoardRename && _currentBoardId) {
       onBoardRename(_currentBoardId, newName);
-      refreshList(); // Update UI in sidebar too
+      refreshList();
     }
   }
 
@@ -87,17 +92,11 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
 
   titleInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') endEditTitle();
-    if (e.key === 'Escape') {
-      isEditingTitle = false;
-      titleText.style.display = 'block';
-      renameBtn.style.display = '';
-      titleInput.style.display = 'none';
-    }
+    if (e.key === 'Escape') cancelEditTitle();
   });
 
   titleInput.addEventListener('blur', endEditTitle);
 
-  // --- Sidebar Logic ---
   function openSidebar() {
     isOpen = true;
     sidebar.classList.add('open');
@@ -125,10 +124,10 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
 
   async function refreshList() {
     const list = sidebar.querySelector('#boardList');
-    list.innerHTML = '<div class="board-item">Loading...</div>'; // Loading indicator
-    
+    list.innerHTML = '<div class="board-item">Loading...</div>';
+
     const boards = await getIndex();
-    list.innerHTML = ''; // Xóa loading
+    list.innerHTML = '';
 
     const currentInfo = boards.find((b) => b.id === _currentBoardId);
     if (currentInfo && !isEditingTitle) updateTitleText(currentInfo.name);
@@ -144,7 +143,7 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
           </span>
           <span class="board-name" data-basename="${escapeHtml(board.name)}">${escapeHtml(board.name)}${_dirtyBoardIds.has(board.id) ? ' *' : ''}</span>
         </div>
-        <button class="board-delete" title="Xóa Board">
+        <button class="board-delete" type="button" aria-label="Xóa board">
           <svg width="14" height="14"><use href="assets/icons/sprite.svg#icon-trash"></use></svg>
         </button>
       `;
@@ -157,13 +156,29 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
         closeSidebar();
       });
 
-      item.querySelector('.board-delete').addEventListener('click', async (e) => {
+      const deleteBtn = item.querySelector('.board-delete');
+      setTooltip(deleteBtn, { label: 'Xóa board', placement: 'left' });
+
+      deleteBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (boards.length <= 1) {
-          alert('Không thể xóa Board cuối cùng!');
+          notify({
+            tone: 'warning',
+            title: 'Không thể xóa',
+            message: 'Không thể xóa board cuối cùng.',
+          });
           return;
         }
-        if (confirm(`Xóa "${board.name}"?`)) {
+
+        const shouldDelete = await confirmAction({
+          title: 'Xóa board?',
+          message: `Board "${board.name}" sẽ bị xóa khỏi danh sách hiện tại.`,
+          confirmLabel: 'Xóa board',
+          cancelLabel: 'Hủy',
+          tone: 'danger',
+        });
+
+        if (shouldDelete) {
           await onBoardDelete(board.id);
           await refreshList();
         }
@@ -183,7 +198,7 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
     refreshList,
     async setCurrentBoard(id) {
       _currentBoardId = id;
-      _currentIsDirty = false; // reset
+      _currentIsDirty = false;
       const boards = await getIndex();
       const currentInfo = boards.find((b) => b.id === id);
       if (currentInfo && !isEditingTitle) {

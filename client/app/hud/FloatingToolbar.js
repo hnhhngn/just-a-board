@@ -9,28 +9,24 @@ const ICONS = {
 };
 
 /**
- * Khởi tạo Floating Toolbar (Toolbar luôn hiện dạng Pill).
+ * Khoi tao Floating Toolbar (Toolbar luon hien dang Pill).
  */
 export function initFloatingToolbar({ onSave }) {
   const container = document.createElement("div");
   container.className = "toolbar-container";
   container.innerHTML = `
     <div class="toolbar-panel" id="toolbarPanel">
-      <button class="tool-btn" data-tool="pan" type="button" aria-label="Pan">
+      <button class="tool-btn" data-tool="pan" type="button" aria-label="Pan" data-tooltip="Pan" data-tooltip-shortcut="Space" data-tooltip-placement="left">
         ${ICONS.pan}
-        <div class="tool-tooltip">Pan <span>Space</span></div>
       </button>
-      <button class="tool-btn active" data-tool="select">
+      <button class="tool-btn active" data-tool="select" type="button" aria-label="Chọn" data-tooltip="Chọn" data-tooltip-shortcut="V" data-tooltip-placement="left">
         ${ICONS.select}
-        <div class="tool-tooltip">Chọn <span>V</span></div>
       </button>
-      <button class="tool-btn" data-tool="note">
+      <button class="tool-btn" data-tool="note" type="button" aria-label="Ghi chú" data-tooltip="Ghi chú" data-tooltip-shortcut="N" data-tooltip-placement="left">
         ${ICONS.note}
-        <div class="tool-tooltip">Ghi chú <span>N</span></div>
       </button>
-      <button class="tool-btn" data-tool="shape">
+      <button class="tool-btn" data-tool="shape" type="button" aria-label="Hình khối" data-tooltip="Hình khối" data-tooltip-shortcut="S" data-tooltip-placement="left">
         ${ICONS.shape}
-        <div class="tool-tooltip">Hình khối <span>S</span></div>
       </button>
     </div>
   `;
@@ -41,7 +37,6 @@ export function initFloatingToolbar({ onSave }) {
   const panBtn = container.querySelector('[data-tool="pan"]');
   const viewport = document.getElementById("viewport");
 
-  // Tool selection
   toolBtns.forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();

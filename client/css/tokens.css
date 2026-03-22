@@ -15,6 +15,9 @@
   --color-active: hsl(210, 6%, 95%);
   --color-active-fg: hsl(210, 11%, 13%);
   --color-accent: hsl(217, 89%, 61%);
+  --color-info: hsl(217, 89%, 61%);
+  --color-success: hsl(145, 63%, 48%);
+  --color-warning: hsl(38, 92%, 56%);
   --color-danger: hsl(0, 100%, 66%);
   --grid-dot: hsla(0, 0%, 100%, 0.15);
 
@@ -26,7 +29,10 @@
   --z-hud-floating: 2010;
   --z-hud-screen-overlay: 2020;
   --z-hud-panel: 2030;
+  --z-tooltip: 2035;
   --z-menu: 2040;
+  --z-toast: 2045;
+  --z-feedback-modal: 2050;
 }
 
 [data-theme="light"] {
@@ -40,6 +46,9 @@
   --color-active: hsl(210, 11%, 13%);
   --color-active-fg: hsl(0, 0%, 100%);
   --color-accent: hsl(217, 89%, 61%);
+  --color-info: hsl(217, 89%, 61%);
+  --color-success: hsl(145, 63%, 41%);
+  --color-warning: hsl(35, 89%, 49%);
   --color-danger: hsl(0, 100%, 66%);
   --grid-dot: hsla(0, 0%, 0%, 0.15);
 }
