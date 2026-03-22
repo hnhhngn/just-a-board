@@ -43,16 +43,16 @@ html {
   cursor: default;
 }
 
+#viewport[data-tool="pan"] {
+  cursor: grab;
+}
+
 #viewport[data-tool="note"] {
   cursor: text;
 }
 
 #viewport[data-tool="shape"] {
   cursor: crosshair;
-}
-
-#viewport[data-interaction="pan"] {
-  cursor: grab;
 }
 
 #viewport[data-interaction="pan-active"] {

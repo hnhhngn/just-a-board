@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { getEffectiveTool, state } from '../state.js';
 import { wakeUp } from '../engine.js';
 import { updateObjectInGrid } from '../grid.js';
 import { ResizeObjectCmd } from '../commands/ResizeObjectCmd.js';
@@ -152,9 +152,10 @@ export function initSelectionOverlay(commandManager) {
   function render() {
     const selected = getSelectedObjects();
     const primary = getPrimarySelection();
-    const canResize = !state.editingObject && state.activeTool === 'select';
+    const activeTool = getEffectiveTool();
+    const canResize = !state.editingObject && activeTool === 'select';
     const marqueeRect = state.marqueeRect;
-    const hovered = state.activeTool === 'select' && !state.editingObject && !state.isPanning && !marqueeRect
+    const hovered = activeTool === 'select' && !state.editingObject && !state.isPanning && !marqueeRect
       ? state.hoveredObject
       : null;
     const hasOverlayContent = selected.length > 0 || hovered || marqueeRect;
@@ -267,7 +268,7 @@ export function initSelectionOverlay(commandManager) {
 
   overlay.addEventListener('mousedown', (event) => {
     const handle = event.target.closest('.selection-handle');
-    if (!handle || state.editingObject || state.activeTool !== 'select') return;
+    if (!handle || state.editingObject || getEffectiveTool() !== 'select') return;
 
     const objectIndex = Number(handle.dataset.objectIndex);
     const obj = Number.isInteger(objectIndex) && objectIndex >= 0 ? state.objects[objectIndex] : null;

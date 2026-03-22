@@ -23,7 +23,7 @@
   user-select: text;
 }
 
-#viewport[data-tool="select"]:not([data-interaction="pan"]):not([data-interaction="pan-active"]) .board-object:hover {
+#viewport[data-tool="select"] .board-object:hover {
   cursor: move;
 }
 

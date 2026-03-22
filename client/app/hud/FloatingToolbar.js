@@ -1,4 +1,4 @@
-import { state } from "../state.js";
+import { getEffectiveTool, state } from "../state.js";
 
 const ICONS = {
   select: `<svg width="18" height="18"><use href="assets/icons/sprite.svg#icon-pointer"></use></svg>`,
@@ -16,7 +16,7 @@ export function initFloatingToolbar({ onSave }) {
   container.className = "toolbar-container";
   container.innerHTML = `
     <div class="toolbar-panel" id="toolbarPanel">
-      <button class="tool-btn tool-status-btn" data-status="pan" type="button" aria-label="Pan" tabindex="-1">
+      <button class="tool-btn" data-tool="pan" type="button" aria-label="Pan">
         ${ICONS.pan}
         <div class="tool-tooltip">Pan <span>Space</span></div>
       </button>
@@ -37,9 +37,8 @@ export function initFloatingToolbar({ onSave }) {
 
   document.body.appendChild(container);
 
-  const panel = container.querySelector("#toolbarPanel");
   const toolBtns = container.querySelectorAll("[data-tool]");
-  const panStatusBtn = container.querySelector('[data-status="pan"]');
+  const panBtn = container.querySelector('[data-tool="pan"]');
   const viewport = document.getElementById("viewport");
 
   // Tool selection
@@ -51,23 +50,20 @@ export function initFloatingToolbar({ onSave }) {
   });
 
   function syncToolUi() {
-    const isPanMode = state.isSpacePressed || state.isPanning;
+    const effectiveTool = getEffectiveTool();
 
     toolBtns.forEach((b) => {
-      b.classList.toggle("active", b.dataset.tool === state.activeTool);
+      b.classList.toggle("active", b.dataset.tool === effectiveTool);
     });
 
-    if (panStatusBtn) {
-      panStatusBtn.classList.toggle("active", isPanMode);
-      panStatusBtn.classList.toggle("is-dragging", state.isPanning);
+    if (panBtn) {
+      panBtn.classList.toggle("is-dragging", state.isPanning);
     }
 
     if (viewport) {
-      viewport.dataset.tool = state.activeTool;
+      viewport.dataset.tool = effectiveTool;
       if (state.isPanning) {
         viewport.dataset.interaction = "pan-active";
-      } else if (isPanMode) {
-        viewport.dataset.interaction = "pan";
       } else {
         delete viewport.dataset.interaction;
       }

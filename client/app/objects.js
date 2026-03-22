@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { getEffectiveTool, state } from './state.js';
 import { wakeUp } from './engine.js';
 import { InsertObjectsCmd } from './commands/InsertObjectsCmd.js';
 import { BatchMoveCmd } from './commands/BatchMoveCmd.js';
@@ -117,7 +117,8 @@ function beginMarquee(event) {
 }
 
 function handleToolCreate(event) {
-  if (state.activeTool === 'select') return;
+  const clickTool = _lastMouseDown?.tool ?? getEffectiveTool();
+  if (clickTool === 'select' || clickTool === 'pan') return;
   if (event.target !== event.currentTarget && event.target.id !== 'world') return;
 
   if (_lastMouseDown) {
@@ -127,7 +128,7 @@ function handleToolCreate(event) {
   }
 
   const point = screenToWorld(event.clientX, event.clientY);
-  const widget = state.activeTool === 'shape'
+  const widget = clickTool === 'shape'
     ? new ShapeWidget(point.x, point.y)
     : new NoteWidget(point.x, point.y);
 
@@ -142,16 +143,17 @@ export function initObjectEvents(viewport, world, commandManager, callbacks = {}
   _callbacks = callbacks;
 
   viewport.addEventListener('mousedown', (event) => {
-    _lastMouseDown = { x: event.clientX, y: event.clientY };
+    _lastMouseDown = { x: event.clientX, y: event.clientY, tool: getEffectiveTool() };
 
     if (event.button !== 0) return;
 
     const isPanGesture = event.shiftKey || state.isSpacePressed || state.isPanning;
+    const activeTool = getEffectiveTool();
 
     const objectEl = event.target.closest('.board-object');
     const obj = objectEl?.__data || null;
 
-    if (state.activeTool !== 'select') {
+    if (activeTool !== 'select') {
       return;
     }
 
@@ -192,7 +194,7 @@ export function initObjectEvents(viewport, world, commandManager, callbacks = {}
   });
 
   viewport.addEventListener('mousemove', (event) => {
-    if (state.activeTool !== 'select' || state.editingObject || state.isPanning || state.isSpacePressed) {
+    if (getEffectiveTool() !== 'select' || state.editingObject || state.isPanning) {
       setHoveredObject(null);
       return;
     }

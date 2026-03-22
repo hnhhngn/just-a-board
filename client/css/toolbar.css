@@ -51,16 +51,7 @@
   color: var(--color-active-fg);
 }
 
-.tool-status-btn {
-  opacity: 0.72;
-  pointer-events: none;
-}
-
-.tool-status-btn.active {
-  opacity: 1;
-}
-
-.tool-status-btn.is-dragging {
+.tool-btn.is-dragging {
   transform: scale(0.96);
 }
 

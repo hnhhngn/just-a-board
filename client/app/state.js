@@ -47,7 +47,7 @@ export const state = {
   objectsVersion: 0,
 
   // HUD & Tools
-  activeTool: 'select', // 'select' | 'note' | 'shape'
+  activeTool: 'select', // 'select' | 'pan' | 'note' | 'shape'
   currentBoardId: null,
 
   // Hot Exit & Sync
@@ -71,3 +71,7 @@ export const state = {
   // Keyboard pan modifier
   isSpacePressed: false,
 };
+
+export function getEffectiveTool() {
+  return state.isSpacePressed || state.isPanning ? 'pan' : state.activeTool;
+}

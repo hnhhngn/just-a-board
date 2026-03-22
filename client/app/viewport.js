@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { getEffectiveTool, state } from './state.js';
 import { wakeUp } from './engine.js';
 
 let _panSession = null;
@@ -18,8 +18,9 @@ export function initViewport(viewport, callbacks = {}) {
     const isMiddlePan = event.button === 1;
     const isShiftPan = event.button === 0 && event.shiftKey;
     const isSpacePan = event.button === 0 && state.isSpacePressed;
+    const isToolPan = event.button === 0 && getEffectiveTool() === 'pan';
 
-    if (!isMiddlePan && !isShiftPan && !isSpacePan) return;
+    if (!isMiddlePan && !isShiftPan && !isSpacePan && !isToolPan) return;
 
     event.preventDefault();
     beginPan(event);
