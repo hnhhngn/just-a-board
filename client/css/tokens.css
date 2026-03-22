@@ -17,6 +17,16 @@
   --color-accent: hsl(217, 89%, 61%);
   --color-danger: hsl(0, 100%, 66%);
   --grid-dot: hsla(0, 0%, 100%, 0.15);
+
+  /* --- Z-Index Layers (Global Stacking System) --- */
+  --z-canvas-base: 0;
+  --z-canvas-highlight: 100;
+  --z-selection-overlay: 1000;
+  --z-hud-dock: 2000;
+  --z-hud-floating: 2010;
+  --z-hud-screen-overlay: 2020;
+  --z-hud-panel: 2030;
+  --z-menu: 2040;
 }
 
 [data-theme="light"] {

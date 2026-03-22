@@ -7,7 +7,7 @@
   right: 24px;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 9999;
+  z-index: var(--z-hud-floating);
 }
 
 .toolbar-panel {
@@ -84,6 +84,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  --z-tooltip-border: 1;
+  --z-tooltip-fill: 2;
 }
 
 .tool-tooltip::after {
@@ -95,7 +97,7 @@
   border-width: 5px 0 5px 5px;
   border-style: solid;
   border-color: transparent transparent transparent var(--color-surface);
-  z-index: 2;
+  z-index: var(--z-tooltip-fill);
 }
 .tool-tooltip::before {
   content: "";
@@ -106,7 +108,7 @@
   border-width: 6px 0 6px 6px;
   border-style: solid;
   border-color: transparent transparent transparent var(--color-border);
-  z-index: 1;
+  z-index: var(--z-tooltip-border);
 }
 
 .tool-btn:hover .tool-tooltip {

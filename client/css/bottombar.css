@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  z-index: 9998;
+  z-index: var(--z-hud-dock);
 }
 
 .bottom-btn {
@@ -111,7 +111,7 @@
   transform: translateY(10px) scale(0.95);
   transform-origin: bottom right;
   transition: all 0.15s ease;
-  z-index: 10000;
+  z-index: var(--z-hud-panel);
 }
 .settings-dropdown.open {
   opacity: 1;
