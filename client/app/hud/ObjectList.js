@@ -112,11 +112,14 @@ export function initObjectList() {
 
   // --- Tự động cập nhật count qua polling nhẹ ---
   let lastCount = -1;
+  let lastVersion = -1;
   function loop() {
     const count = state.objects.length;
-    if (count !== lastCount) {
+    const version = state.objectsVersion;
+    if (count !== lastCount || version !== lastVersion) {
       countEl.textContent = count;
       lastCount = count;
+       lastVersion = version;
       if (isOpen) refresh();
     }
     requestAnimationFrame(loop);

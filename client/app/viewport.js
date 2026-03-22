@@ -1,121 +1,69 @@
 import { state } from './state.js';
 import { wakeUp } from './engine.js';
-import { updateObjectInGrid } from './grid.js';
-import { MoveObjectCmd } from './commands/MoveObjectCmd.js';
 
-let _commandManager = null;
+let _panSession = null;
 
-/**
- * Khởi tạo toàn bộ sự kiện Pan, Zoom và Drag Delegation.
- */
-export function initViewport(viewport, world, commandManager) {
-  _commandManager = commandManager;
-  // --- MOUSEDOWN: Pan bảng HOẶC Kéo Widget ---
-  viewport.addEventListener("mousedown", (e) => {
-    // --- XỬ LÝ KÉO NOTE (DELEGATION) ---
-    const noteEl = e.target.closest('.board-object');
-    if (noteEl && noteEl.__data) {
-      e.stopPropagation();
-      state.activeDragObject = noteEl.__data;
+function beginPan(event) {
+  state.isPanning = true;
+  _panSession = {
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startTargetX: state.targetX,
+    startTargetY: state.targetY,
+  };
+}
 
-      state.dragStartX = e.clientX;
-      state.dragStartY = e.clientY;
-      state.dragStartLeft = state.activeDragObject.x;
-      state.dragStartTop = state.activeDragObject.y;
-      noteEl.style.zIndex = 1000;
-      return;
-    }
+export function initViewport(viewport, callbacks = {}) {
+  viewport.addEventListener('mousedown', (event) => {
+    const isMiddlePan = event.button === 1;
+    const isShiftPan = event.button === 0 && event.shiftKey;
+    const isSpacePan = event.button === 0 && state.isSpacePressed;
 
-    // --- XỬ LÝ PAN BẢNG ---
-    if (e.target !== viewport && e.target !== world) return;
-    if (state.activeTool !== 'select') return; // Không pan khi đang ở chế độ tạo widget
+    if (!isMiddlePan && !isShiftPan && !isSpacePan) return;
 
-    // Hủy focus khỏi Note đang được chỉnh sửa
-    if (document.activeElement) document.activeElement.blur();
-
-    e.preventDefault(); // Chặn hiện tượng nháy bôi đen văn bản/ảnh
-
-    state.isPanning = true;
-    state.startX = e.clientX - state.targetX;
-    state.startY = e.clientY - state.targetY;
+    event.preventDefault();
+    beginPan(event);
+    callbacks.onInteractionChange?.();
   });
 
-  // --- MOUSEMOVE: Kéo Widget hoặc Pan ---
-  window.addEventListener("mousemove", (e) => {
-    // Failsafe: phát hiện chuột đã thả nhưng browser nuốt mouseup
-    if (e.buttons === 0) {
-      if (state.activeDragObject) {
-        recordMove(state.activeDragObject);
-        state.activeDragObject.element.style.zIndex = "";
-        state.activeDragObject = null;
-      }
-      state.isPanning = false;
-      return;
-    }
+  window.addEventListener('mousemove', (event) => {
+    if (!_panSession) return;
 
-    if (state.activeDragObject) {
-      const dx = e.clientX - state.dragStartX;
-      const dy = e.clientY - state.dragStartY;
-
-      state.activeDragObject.x = state.dragStartLeft + dx / state.targetScale;
-      state.activeDragObject.y = state.dragStartTop + dy / state.targetScale;
-
-      state.activeDragObject.element.style.left = `${state.activeDragObject.x}px`;
-      state.activeDragObject.element.style.top = `${state.activeDragObject.y}px`;
-
-      updateObjectInGrid(state.activeDragObject);
-      return;
-    }
-
-    if (!state.isPanning) return;
-
-    state.targetX = e.clientX - state.startX;
-    state.targetY = e.clientY - state.startY;
+    state.targetX = _panSession.startTargetX + (event.clientX - _panSession.startClientX);
+    state.targetY = _panSession.startTargetY + (event.clientY - _panSession.startClientY);
     wakeUp();
   });
 
-  // --- MOUSEUP: Nhả chuột ---
-  window.addEventListener("mouseup", () => {
-    if (state.activeDragObject) {
-      recordMove(state.activeDragObject);
-      state.activeDragObject.element.style.zIndex = "";
-      state.activeDragObject = null;
-    }
+  window.addEventListener('mouseup', () => {
+    const didPan = state.isPanning;
     state.isPanning = false;
+    _panSession = null;
+    if (didPan) callbacks.onInteractionChange?.();
   });
 
-  /**
-   * Ghi nhận lệnh di chuyển (chỉ khi vị trí thực sự thay đổi).
-   */
-  function recordMove(obj) {
-    if (obj.x !== state.dragStartLeft || obj.y !== state.dragStartTop) {
-      _commandManager.record(
-        new MoveObjectCmd(obj, state.dragStartLeft, state.dragStartTop, obj.x, obj.y)
-      );
+  viewport.addEventListener('wheel', (event) => {
+    if (state.editingObject && state.editingObject.element.contains(event.target)) {
+      return;
     }
-  }
 
-  // --- WHEEL: Zoom ---
-  viewport.addEventListener(
-    "wheel",
-    (e) => {
-      e.preventDefault();
+    event.preventDefault();
 
-      // 1. Lưu vị trí chuột (Anchor)
-      state.anchorMouseX = e.clientX;
-      state.anchorMouseY = e.clientY;
-
-      // 2. Điểm neo trong thế giới
+    if (event.ctrlKey) {
+      state.anchorMouseX = event.clientX;
+      state.anchorMouseY = event.clientY;
       state.anchorWorldX = (state.anchorMouseX - state.currentX) / state.currentScale;
       state.anchorWorldY = (state.anchorMouseY - state.currentY) / state.currentScale;
 
-      // 3. Cập nhật targetScale
-      const delta = -e.deltaY * 0.001;
+      const delta = -event.deltaY * 0.001;
       state.targetScale = Math.min(Math.max(0.1, state.targetScale + delta), 5);
-
       state.isZooming = true;
-      wakeUp();
-    },
-    { passive: false },
-  );
+    } else if (event.shiftKey) {
+      state.targetX -= event.deltaY || event.deltaX;
+    } else {
+      state.targetX -= event.deltaX;
+      state.targetY -= event.deltaY;
+    }
+
+    wakeUp();
+  }, { passive: false });
 }

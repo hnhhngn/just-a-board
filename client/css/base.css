@@ -17,11 +17,7 @@ html {
   width: 100vw;
   height: 100vh;
   position: relative;
-  cursor: grab;
-}
-
-#viewport:active {
-  cursor: grabbing;
+  cursor: default;
 }
 
 #world {
@@ -43,9 +39,22 @@ html {
 }
 
 /* --- Cursor Modes --- */
-#viewport.mode-create {
+#viewport[data-tool="select"] {
+  cursor: default;
+}
+
+#viewport[data-tool="note"] {
+  cursor: text;
+}
+
+#viewport[data-tool="shape"] {
   cursor: crosshair;
 }
-#viewport.mode-create:active {
-  cursor: crosshair;
+
+#viewport[data-interaction="pan"] {
+  cursor: grab;
+}
+
+#viewport[data-interaction="pan-active"] {
+  cursor: grabbing;
 }

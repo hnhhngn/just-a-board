@@ -15,6 +15,7 @@ export class BaseWidget {
     this.element = this.createElement();
     this.element.__data = this;
     this.setPosition(x, y);
+    this.setSize(width, height);
   }
 
   /**
@@ -28,8 +29,20 @@ export class BaseWidget {
    * Serialize dữ liệu ra plain object để lưu trữ.
    * Override ở lớp con để thêm dữ liệu riêng (text, src,...).
    */
-  serialize() {
+  serializeBase() {
     return { type: this.type, x: this.x, y: this.y, width: this.width, height: this.height };
+  }
+
+  async serializeDraft() {
+    return this.serializeBase();
+  }
+
+  async serializeForSave() {
+    return this.serializeBase();
+  }
+
+  async serializeForClipboard() {
+    return this.serializeBase();
   }
 
   /**
@@ -42,12 +55,28 @@ export class BaseWidget {
     this.element.style.top = `${y}px`;
   }
 
+  setSize(width, height) {
+    this.width = width;
+    this.height = height;
+
+    if (typeof width === 'number' && Number.isFinite(width)) {
+      this.element.style.width = `${Math.max(24, width)}px`;
+      this.width = Math.max(24, width);
+    }
+
+    if (typeof height === 'number' && Number.isFinite(height)) {
+      this.element.style.height = `${Math.max(24, height)}px`;
+      this.height = Math.max(24, height);
+    }
+  }
+
   /**
    * Gắn widget vào DOM và cập nhật kích thước thực tế.
    */
-  attachTo(parent) {
+  attachTo(parent, onSizeReady) {
     parent.appendChild(this.element);
     this.updateSize();
+    if (onSizeReady) onSizeReady(this);
   }
 
   /**

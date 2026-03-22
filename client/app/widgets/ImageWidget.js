@@ -1,31 +1,83 @@
 import { BaseWidget } from './BaseWidget.js';
+import { assetToDataUrl, createAssetFromDataUrl, createImageAsset, getAssetBlob } from '../storage/DraftStore.js';
 
-/**
- * Lazy upload: Nếu phát hiện Blob URL, đẩy mảng bytes lên Server,
- * sau đó đổi source thành Server URL (/images/...) để Serialize cực nhẹ.
- */
-async function ensureUploaded(src) {
-  if (!src.startsWith('blob:')) return src; // Đã upload rồi, hoặc là data url cũ
-  
-  const res = await fetch(src);
-  const blob = await res.blob();
-  
-  // POST file bin lên endpoint /api/images
+async function uploadBlob(blob) {
   const uploadRes = await fetch('/api/images', {
     method: 'POST',
-    body: blob
+    body: blob,
   });
-  
-  if (!uploadRes.ok) throw new Error('Upload failed');
+
+  if (!uploadRes.ok) {
+    throw new Error('Upload failed');
+  }
+
   const data = await uploadRes.json();
-  
   return data.url;
 }
 
 export class ImageWidget extends BaseWidget {
-  constructor(x, y, src) {
-    super('image', x, y, 300, 300);
-    this.element.src = src;
+  constructor(x, y, source, displaySrc, width = 300, height = 300) {
+    super('image', x, y, width, height);
+    this.source = source;
+    this.displaySrc = displaySrc;
+    this.element.src = displaySrc;
+  }
+
+  static async fromSavedUrl(x, y, src, width = 300, height = 300) {
+    return new ImageWidget(
+      x,
+      y,
+      { kind: 'saved-url', src },
+      src,
+      width,
+      height,
+    );
+  }
+
+  static async fromDraftAsset(x, y, boardId, assetId, width = 300, height = 300) {
+    const blob = await getAssetBlob(assetId);
+    if (!blob) {
+      throw new Error(`Không tìm thấy draft asset ${assetId}`);
+    }
+
+    const displaySrc = URL.createObjectURL(blob);
+    return new ImageWidget(
+      x,
+      y,
+      { kind: 'draft-asset', boardId, assetId },
+      displaySrc,
+      width,
+      height,
+    );
+  }
+
+  static async fromBlob(x, y, boardId, blob, width = 300, height = 300) {
+    const asset = await createImageAsset(boardId, blob);
+    const displaySrc = URL.createObjectURL(blob);
+
+    return new ImageWidget(
+      x,
+      y,
+      { kind: 'draft-asset', boardId, assetId: asset.id, mimeType: asset.mimeType },
+      displaySrc,
+      width,
+      height,
+    );
+  }
+
+  static async fromClipboardData(x, y, boardId, dataUrl, width = 300, height = 300) {
+    const asset = await createAssetFromDataUrl(boardId, dataUrl);
+    const blob = await getAssetBlob(asset.id);
+    const displaySrc = URL.createObjectURL(blob);
+
+    return new ImageWidget(
+      x,
+      y,
+      { kind: 'draft-asset', boardId, assetId: asset.id, mimeType: asset.mimeType },
+      displaySrc,
+      width,
+      height,
+    );
   }
 
   createElement() {
@@ -35,14 +87,11 @@ export class ImageWidget extends BaseWidget {
     return img;
   }
 
-  /**
-   * Override attachTo: cập nhật kích thước sau khi ảnh tải xong.
-   * Trả về callback onSizeReady để bên ngoài cập nhật Grid.
-   */
   attachTo(parent, onSizeReady) {
     parent.appendChild(this.element);
     if (this.element.complete && this.element.naturalWidth) {
       this.updateSize();
+      if (onSizeReady) onSizeReady(this);
     } else {
       this.element.onload = () => {
         this.updateSize();
@@ -51,15 +100,55 @@ export class ImageWidget extends BaseWidget {
     }
   }
 
-  async serialize() {
-    // Lấy link gốc bằng getAttribute để tránh DOM tự ép thành http://localhost...
-    const currentSrc = this.element.getAttribute('src') || this.element.src;
-    const serverUrl = await ensureUploaded(currentSrc);
-    this.element.setAttribute('src', serverUrl);
+  async serializeDraft() {
+    if (this.source.kind === 'draft-asset') {
+      return {
+        ...this.serializeBase(),
+        sourceKind: 'draft-asset',
+        assetId: this.source.assetId,
+      };
+    }
 
     return {
-      ...super.serialize(),
-      src: serverUrl,
+      ...this.serializeBase(),
+      sourceKind: 'saved-url',
+      src: this.source.src,
+    };
+  }
+
+  async serializeForSave() {
+    if (this.source.kind === 'draft-asset') {
+      const blob = await getAssetBlob(this.source.assetId);
+      if (!blob) {
+        throw new Error(`Không tìm thấy dữ liệu ảnh draft ${this.source.assetId}`);
+      }
+
+      const savedUrl = await uploadBlob(blob);
+      this.source = { kind: 'saved-url', src: savedUrl };
+      this.displaySrc = savedUrl;
+      this.element.src = savedUrl;
+    }
+
+    return {
+      ...this.serializeBase(),
+      src: this.source.src,
+    };
+  }
+
+  async serializeForClipboard() {
+    if (this.source.kind === 'draft-asset') {
+      const dataUrl = await assetToDataUrl(this.source.assetId);
+      return {
+        ...this.serializeBase(),
+        sourceKind: 'clipboard-data-url',
+        dataUrl,
+      };
+    }
+
+    return {
+      ...this.serializeBase(),
+      sourceKind: 'saved-url',
+      src: this.source.src,
     };
   }
 }

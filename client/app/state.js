@@ -5,6 +5,8 @@ export const settings = {
   zoomEase: 0.15, // Tốc độ đuổi theo của Zoom
   epsilon: 0.001, // Sai số cho phép để dừng engine
   showGrid: true, // Hiện/ẩn lưới chấm bi
+  keyboardNudgeStep: 1,
+  keyboardFastNudgeStep: 10,
 };
 
 // --- TRẠNG THÁI TOÀN CỤC (STATE) ---
@@ -42,6 +44,7 @@ export const state = {
 
   // Danh sách đối tượng
   objects: [],
+  objectsVersion: 0,
 
   // HUD & Tools
   activeTool: 'select', // 'select' | 'note' | 'shape'
@@ -49,4 +52,22 @@ export const state = {
 
   // Hot Exit & Sync
   hasUnsavedChanges: false, // Để so sánh với Server, tính qua isDirty()
+
+  // Selection & Editing
+  selectedObjects: new Set(),
+  primarySelection: null,
+  hoveredObject: null,
+  editingObject: null,
+  isDraggingSelection: false,
+  marqueeRect: null,
+
+  // Context Menu
+  contextMenu: null,
+  lastContextWorldPoint: null,
+
+  // Multi-board dirty state
+  dirtyBoardIds: new Set(),
+
+  // Keyboard pan modifier
+  isSpacePressed: false,
 };

@@ -1,55 +1,93 @@
-import { state } from './state.js';
+import { state, settings } from './state.js';
 import { initEngine } from './engine.js';
 import { initViewport } from './viewport.js';
 import { initObjectEvents } from './objects.js';
 import { clearGrid } from './grid.js';
+import { initObjectStore, clearObjects, insertObjects } from './objectStore.js';
 import { CommandManager } from './commands/CommandManager.js';
-import { serialize, deserialize } from './storage/BoardSerializer.js';
+import { deserialize, createWidgetFromData, serializeDraft, serializeForSave } from './storage/BoardSerializer.js';
+import { clearDraft, listDirtyBoardIds, loadDraft, saveDraft } from './storage/DraftStore.js';
 import { getIndex, create, remove, save, load, rename } from './storage/index.js';
 import { initFloatingToolbar } from './hud/FloatingToolbar.js';
 import { initSidebar } from './hud/Sidebar.js';
 import { initBottomBar } from './hud/BottomBar.js';
 import { initObjectList } from './hud/ObjectList.js';
+import { initSelectionOverlay } from './hud/SelectionOverlay.js';
+import { initContextMenu } from './hud/ContextMenu.js';
+import { BatchDeleteCmd } from './commands/BatchDeleteCmd.js';
+import { BatchMoveCmd } from './commands/BatchMoveCmd.js';
+import { InsertObjectsCmd } from './commands/InsertObjectsCmd.js';
+import { ReorderObjectsCmd } from './commands/ReorderObjectsCmd.js';
+import { readClipboardContent, writeObjectsToClipboard } from './clipboard.js';
+import { getObjectsBounds, moveOrderBackward, moveOrderForward, moveOrderToBack, moveOrderToFront } from './objectActions.js';
+import { clearSelection, getPrimarySelection, getSelectedObjects, setSelection } from './selection.js';
+import { ImageWidget } from './widgets/ImageWidget.js';
 
-// --- LẤY THAM CHIẾU DOM ---
+const DRAFT_PERSIST_DELAY = 250;
+
 const viewport = document.getElementById('viewport');
 const world = document.getElementById('world');
 
-// --- KHỞI TẠO CORE ---
-const commandManager = new CommandManager(async (isDirty) => {
-  state.hasUnsavedChanges = isDirty;
-  updateTitle(); // Cũng kích hoạt update indicator
-  // Auto-Save tức thì (0ms) khi có bất kỳ thay đổi nào (thay thế vòng lặp setInterval cũ)
-  if (isDirty && state.currentBoardId) {
-    const json = await serialize(state.objects);
-    const backupObj = { timestamp: Date.now(), data: json };
-    localStorage.setItem(`jab-hot-exit-${state.currentBoardId}`, JSON.stringify(backupObj));
-  }
-});
 initEngine(world);
+initObjectStore(world);
 
-// --- KHỞI TẠO HUD ---
+let draftPersistTimer = null;
+let transientEditDirty = false;
+let suppressDirtySync = false;
+
+const commandManager = new CommandManager(() => {
+  if (suppressDirtySync) return;
+  syncCurrentBoardDirty();
+  scheduleDraftPersist();
+  objectList?.refresh();
+});
+
 const toolbar = initFloatingToolbar({});
 const bottomBar = initBottomBar({ onSave: handleSave });
 const objectList = initObjectList();
+const contextMenu = initContextMenu();
+initSelectionOverlay(commandManager);
 
-initViewport(viewport, world, commandManager);
-initObjectEvents(viewport, world, commandManager, () => toolbar.resetTool());
+const objectEvents = initObjectEvents(viewport, world, commandManager, {
+  onToolUsed: () => toolbar.resetTool(),
+  onEditingDirtyChange: (isDirty) => {
+    transientEditDirty = isDirty;
+    syncCurrentBoardDirty();
+    scheduleDraftPersist();
+  },
+  onEditingInput: () => {
+    scheduleDraftPersist();
+    objectList.refresh();
+  },
+  onRequestContextMenu: (request) => {
+    showContextMenu(request);
+  },
+  onPasteContent: async (content, anchorPoint, source) => {
+    await pasteClipboardContent(content, anchorPoint, source);
+  },
+});
+
+initViewport(viewport, {
+  onInteractionChange: () => toolbar.refresh(),
+});
 
 const sidebar = initSidebar({
   getIndex,
   currentBoardId: state.currentBoardId,
   menuIcon: toolbar.menuIcon,
-  onBoardSelect: async (id) => await switchBoard(id),
+  onBoardSelect: async (id) => switchBoard(id),
   onBoardCreate: async () => {
     const board = await create();
     await switchBoard(board.id);
   },
   onBoardDelete: async (id) => {
     await remove(id);
-    // Nếu xóa board đang mở → chuyển sang board đầu tiên (ngăn Tái sinh rác)
+    await clearDraft(id);
+    state.dirtyBoardIds.delete(id);
+    refreshDirtyBoards();
+
     if (id === state.currentBoardId) {
-      state.currentBoardId = null; // NGẮT SAVE AUTO!
+      state.currentBoardId = null;
       const boards = await getIndex();
       if (boards.length > 0) {
         await switchBoard(boards[0].id);
@@ -61,18 +99,18 @@ const sidebar = initSidebar({
   },
   onBoardRename: async (id, newName) => {
     await rename(id, newName);
-    document.title = newName;
-  }
+    updateTitle();
+  },
 });
 
-// --- KHỞI TẠO DỮ LIỆU ---
-initializeData();
+await initializeData();
 
 async function initializeData() {
+  state.dirtyBoardIds = new Set(await listDirtyBoardIds());
+  refreshDirtyBoards();
+
   const boards = await getIndex();
-  
   if (boards.length === 0) {
-    // Lần đầu mở ứng dụng: tạo board mặc định
     const board = await create('Board mặc định');
     state.currentBoardId = board.id;
   } else {
@@ -81,123 +119,405 @@ async function initializeData() {
 
   await sidebar.setCurrentBoard(state.currentBoardId);
   await loadCurrentBoard();
+  updateTitle();
 }
 
-// --- QUẢN LÝ BOARD ---
+function refreshDirtyBoards() {
+  state.hasUnsavedChanges = state.currentBoardId
+    ? state.dirtyBoardIds.has(state.currentBoardId)
+    : false;
 
-async function updateTitle() {
-  const boards = await getIndex();
-  const board = boards.find((b) => b.id === state.currentBoardId);
-  const name = board ? board.name : 'Just a board';
-  document.title = name; // Bỏ dấu sao * và chữ Đã lưu nhảm rác ở Title
-  
+  if (sidebar?.setDirtyBoards) sidebar.setDirtyBoards([...state.dirtyBoardIds]);
   if (sidebar?.setDirtyIndicator) sidebar.setDirtyIndicator(state.hasUnsavedChanges);
   if (bottomBar?.setDirtyIndicator) bottomBar.setDirtyIndicator(state.hasUnsavedChanges);
 }
 
-async function loadCurrentBoard() {
-  const hotExitKey = `jab-hot-exit-${state.currentBoardId}`;
-  const hotExitRaw = localStorage.getItem(hotExitKey);
+function syncCurrentBoardDirty() {
+  if (!state.currentBoardId) return;
 
-  // Lấy timestamp từ Server (index)
-  const boards = await getIndex();
-  const boardInfo = boards.find((b) => b.id === state.currentBoardId);
-  const serverTimestamp = boardInfo ? boardInfo.lastModified : 0;
-
-  if (hotExitRaw) {
-    try {
-      const hotExitObj = JSON.parse(hotExitRaw);
-      
-      // Chỉ nạp Hot Exit nếu Local thao tác GẦN ĐÂY HƠN bản lưu trên Server
-      if (hotExitObj.timestamp > serverTimestamp) {
-        console.log("Phục hồi nội dung từ Bản nháp (Hot Exit)!");
-        deserialize(hotExitObj.data, world);
-        commandManager.markUnsaved(); // Đóng thẻ "Cần lưu"
-        return;
-      }
-    } catch(e) {
-      console.warn("Dữ liệu nháp lỗi, tiến hành nạp từ Server");
-    }
+  const isDirty = commandManager.isDirty() || transientEditDirty;
+  if (isDirty) {
+    state.dirtyBoardIds.add(state.currentBoardId);
+  } else {
+    state.dirtyBoardIds.delete(state.currentBoardId);
   }
 
-  // Nếu không có nháp hoặc Server mới hơn
-  const data = await load(state.currentBoardId);
-  if (data) deserialize(data, world);
-  commandManager.markSaved(); // Tuyên bố Bảng sạch sẽ
+  refreshDirtyBoards();
+  updateTitle();
+}
+
+function collectDraftAssetIds(snapshot) {
+  try {
+    const items = JSON.parse(snapshot);
+    return items
+      .filter((item) => item.type === 'image' && item.sourceKind === 'draft-asset' && item.assetId)
+      .map((item) => item.assetId);
+  } catch {
+    return [];
+  }
+}
+
+function scheduleDraftPersist() {
+  if (!state.currentBoardId) return;
+  clearTimeout(draftPersistTimer);
+  draftPersistTimer = setTimeout(() => {
+    void persistCurrentDraft();
+  }, DRAFT_PERSIST_DELAY);
+}
+
+async function persistCurrentDraft() {
+  clearTimeout(draftPersistTimer);
+  draftPersistTimer = null;
+
+  const boardId = state.currentBoardId;
+  if (!boardId) return;
+
+  if (!state.dirtyBoardIds.has(boardId)) {
+    await clearDraft(boardId);
+    return;
+  }
+
+  const snapshot = await serializeDraft(state.objects);
+  const assetIds = collectDraftAssetIds(snapshot);
+  await saveDraft(boardId, snapshot, assetIds);
+}
+
+async function flushCurrentDraft() {
+  if (!state.currentBoardId) return;
+  await persistCurrentDraft();
+}
+
+async function updateTitle() {
+  const boards = await getIndex();
+  const board = boards.find((item) => item.id === state.currentBoardId);
+  document.title = board ? board.name : 'Just a board';
+  refreshDirtyBoards();
+}
+
+async function loadCurrentBoard() {
+  const boardId = state.currentBoardId;
+  if (!boardId) return;
+
+  let draftRecord = await loadDraft(boardId);
+  let snapshot = draftRecord?.snapshot ?? await load(boardId) ?? '[]';
+  let widgets = [];
+
+  try {
+    widgets = await deserialize(snapshot, boardId);
+  } catch (error) {
+    console.warn('Không thể nạp draft hiện tại, fallback về bản saved:', error);
+    draftRecord = null;
+    await clearDraft(boardId);
+    state.dirtyBoardIds.delete(boardId);
+    snapshot = await load(boardId) ?? '[]';
+    widgets = await deserialize(snapshot, boardId);
+  }
+
+  insertObjects(widgets, 0);
+
+  transientEditDirty = false;
+  suppressDirtySync = true;
+  if (draftRecord?.snapshot) {
+    commandManager.markUnsaved();
+    state.dirtyBoardIds.add(boardId);
+  } else {
+    commandManager.markSaved();
+    state.dirtyBoardIds.delete(boardId);
+  }
+  suppressDirtySync = false;
+
+  refreshDirtyBoards();
+  objectList.refresh();
 }
 
 function clearCurrentBoard() {
-  // Gỡ tất cả widget khỏi DOM
-  state.objects.forEach((obj) => obj.detach());
-  state.objects.length = 0;
+  objectEvents.cancelEditing();
+  transientEditDirty = false;
+  clearSelection();
+  clearObjects();
   clearGrid();
+  suppressDirtySync = true;
   commandManager.clear();
+  suppressDirtySync = false;
+  contextMenu.hide();
 }
 
 async function switchBoard(boardId) {
-  // 1. Lưu board hiện tại
-  if (state.currentBoardId) {
-    await saveCurrentBoard();
-  }
+  if (state.currentBoardId === boardId) return;
 
-  // 2. Xóa trạng thái hiện tại
+  objectEvents.commitEditing();
+  await flushCurrentDraft();
   clearCurrentBoard();
 
-  // 3. Chuyển sang board mới
   state.currentBoardId = boardId;
   await sidebar.setCurrentBoard(boardId);
   await loadCurrentBoard();
-  
-  // 4. Cập nhật tiêu đề
   updateTitle();
 }
 
 async function saveCurrentBoard() {
-  const json = await serialize(state.objects);
+  if (!state.currentBoardId) return;
+
+  objectEvents.commitEditing();
+  const json = await serializeForSave(state.objects);
   await save(state.currentBoardId, json);
-  
-  // Xóa bản nháp trên Local vì Server đã đồng bộ
-  localStorage.removeItem(`jab-hot-exit-${state.currentBoardId}`);
-  commandManager.markSaved(); // Vô hình chung tắt luôn dấu sao *
+  await clearDraft(state.currentBoardId);
+
+  transientEditDirty = false;
+  state.dirtyBoardIds.delete(state.currentBoardId);
+  commandManager.markSaved();
+  refreshDirtyBoards();
+  updateTitle();
 }
 
-// --- PHÍM TẮT ---
-window.addEventListener('keydown', (e) => {
-  const isEditing = document.activeElement?.contentEditable === 'true';
+function getClipboardAnchor(anchorPoint, items) {
+  const bounds = getObjectsBounds(items.map((item) => ({
+    x: item.x,
+    y: item.y,
+    width: item.width,
+    height: item.height,
+  })));
 
-  // Ctrl+Z: Undo
-  if (e.ctrlKey && e.key === 'z' && !e.shiftKey && !isEditing) {
-    e.preventDefault();
+  if (!bounds) return { offsetX: 0, offsetY: 0 };
+
+  return {
+    offsetX: anchorPoint.x - bounds.centerX,
+    offsetY: anchorPoint.y - bounds.centerY,
+  };
+}
+
+async function buildWidgetsFromClipboardItems(items, anchorPoint) {
+  const { offsetX, offsetY } = getClipboardAnchor(anchorPoint, items);
+  const widgets = [];
+
+  for (const item of items) {
+    widgets.push(await createWidgetFromData({
+      ...item,
+      x: item.x + offsetX,
+      y: item.y + offsetY,
+    }, state.currentBoardId));
+  }
+
+  return widgets;
+}
+
+async function pasteClipboardContent(content, anchorPoint, source) {
+  if (!state.currentBoardId) return;
+
+  if (content.kind === 'images') {
+    const widgets = [];
+    for (let i = 0; i < content.blobs.length; i += 1) {
+      widgets.push(await ImageWidget.fromBlob(
+        anchorPoint.x + i * 24,
+        anchorPoint.y + i * 24,
+        state.currentBoardId,
+        content.blobs[i],
+      ));
+    }
+
+    commandManager.execute(new InsertObjectsCmd(widgets));
+    setSelection(widgets, widgets[widgets.length - 1]);
+    return;
+  }
+
+  if (content.kind === 'objects') {
+    const widgets = await buildWidgetsFromClipboardItems(content.payload.items, anchorPoint);
+    commandManager.execute(new InsertObjectsCmd(widgets));
+    setSelection(widgets, widgets[widgets.length - 1]);
+    return;
+  }
+
+  if (source === 'context-menu') {
+    const clipboardContent = await readClipboardContent();
+    if (clipboardContent) {
+      await pasteClipboardContent(clipboardContent, anchorPoint, 'clipboard-api');
+    }
+  }
+}
+
+function deleteSelection() {
+  const selected = getSelectedObjects();
+  if (selected.length === 0) return;
+  clearSelection();
+  commandManager.execute(new BatchDeleteCmd(selected));
+}
+
+function clearBoardContents() {
+  if (state.objects.length === 0) return;
+  clearSelection();
+  commandManager.execute(new BatchDeleteCmd([...state.objects]));
+}
+
+async function copySelection() {
+  const selected = getSelectedObjects();
+  if (selected.length === 0) return;
+  await writeObjectsToClipboard(selected);
+}
+
+function reorderSelection(direction) {
+  const selected = getSelectedObjects();
+  if (selected.length === 0) return;
+
+  const selectedSet = new Set(selected);
+  const oldOrder = [...state.objects];
+  let newOrder = oldOrder;
+
+  if (direction === 'front') newOrder = moveOrderToFront(oldOrder, selectedSet);
+  if (direction === 'back') newOrder = moveOrderToBack(oldOrder, selectedSet);
+  if (direction === 'forward') newOrder = moveOrderForward(oldOrder, selectedSet);
+  if (direction === 'backward') newOrder = moveOrderBackward(oldOrder, selectedSet);
+
+  const unchanged = oldOrder.every((obj, index) => obj === newOrder[index]);
+  if (!unchanged) {
+    commandManager.execute(new ReorderObjectsCmd(oldOrder, newOrder));
+    objectList.refresh();
+  }
+}
+
+function nudgeSelection(dx, dy) {
+  const selected = getSelectedObjects();
+  if (selected.length === 0) return;
+
+  const beforeEntries = selected.map((obj) => ({ obj, x: obj.x, y: obj.y }));
+  const afterEntries = selected.map((obj) => ({ obj, x: obj.x + dx, y: obj.y + dy }));
+  commandManager.execute(new BatchMoveCmd(beforeEntries, afterEntries));
+}
+
+function showContextMenu(request) {
+  const selected = getSelectedObjects();
+
+  if (request.kind === 'selection') {
+    contextMenu.show({
+      kind: 'selection',
+      clientX: request.clientX,
+      clientY: request.clientY,
+      items: [
+        { label: 'Delete', onSelect: deleteSelection, disabled: selected.length === 0 },
+        { label: 'Copy', onSelect: () => { void copySelection(); }, disabled: selected.length === 0 },
+        { label: 'Bring to front', onSelect: () => reorderSelection('front'), disabled: selected.length === 0 },
+        { label: 'Send to back', onSelect: () => reorderSelection('back'), disabled: selected.length === 0 },
+        { label: 'Bring forward', onSelect: () => reorderSelection('forward'), disabled: selected.length === 0 },
+        { label: 'Send backward', onSelect: () => reorderSelection('backward'), disabled: selected.length === 0 },
+      ],
+    });
+    return;
+  }
+
+  contextMenu.show({
+    kind: 'blank',
+    clientX: request.clientX,
+    clientY: request.clientY,
+    items: [
+      {
+        label: 'Paste',
+        onSelect: () => {
+          void (async () => {
+            const clipboardContent = await readClipboardContent();
+            if (clipboardContent) {
+              await pasteClipboardContent(clipboardContent, request.worldPoint, 'context-menu');
+            }
+          })();
+        },
+      },
+      { label: 'Save', onSelect: () => { void handleSave(); } },
+      { label: 'Clear', onSelect: clearBoardContents },
+    ],
+  });
+}
+
+window.addEventListener('keydown', (event) => {
+  const isEditing = objectEvents.isEditing();
+
+  if (event.code === 'Space' && !isEditing) {
+    state.isSpacePressed = true;
+    toolbar.refresh();
+    event.preventDefault();
+  }
+
+  if (event.ctrlKey && event.key === 'z' && !event.shiftKey && !isEditing) {
+    event.preventDefault();
     commandManager.undo();
+    return;
   }
 
-  // Ctrl+Y: Redo
-  if (e.ctrlKey && e.key === 'y' && !isEditing) {
-    e.preventDefault();
+  if ((event.ctrlKey && event.key === 'y' && !isEditing) || (event.ctrlKey && event.shiftKey && event.key === 'Z' && !isEditing)) {
+    event.preventDefault();
     commandManager.redo();
+    return;
   }
 
-  // Ctrl+S: Save
-  if (e.ctrlKey && e.key === 's') {
-    e.preventDefault();
-    handleSave();
+  if (event.ctrlKey && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    void handleSave();
+    return;
   }
 
+  if (event.ctrlKey && event.key.toLowerCase() === 'c' && !isEditing) {
+    event.preventDefault();
+    void copySelection();
+    return;
+  }
 
-  // Tool shortcuts (chỉ khi không đang gõ)
-  if (!isEditing && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-    if (e.key === 'v') toolbar.resetTool();
-    if (e.key === 'n') { state.activeTool = 'note'; toolbar.resetTool(); state.activeTool = 'note'; document.getElementById('viewport').classList.add('mode-create'); }
-    if (e.key === 's') { state.activeTool = 'shape'; document.getElementById('viewport').classList.add('mode-create'); }
+  if (!isEditing && (event.key === 'Delete' || event.key === 'Backspace')) {
+    event.preventDefault();
+    deleteSelection();
+    return;
+  }
+
+  if (!isEditing && (event.key === 'Enter' || event.key === 'F2')) {
+    const primary = getPrimarySelection();
+    if (primary?.type === 'note') {
+      event.preventDefault();
+      objectEvents.startEditingPrimarySelection();
+      return;
+    }
+  }
+
+  if (!isEditing && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+    event.preventDefault();
+    const step = event.shiftKey ? settings.keyboardFastNudgeStep : settings.keyboardNudgeStep;
+    if (event.key === 'ArrowUp') nudgeSelection(0, -step);
+    if (event.key === 'ArrowDown') nudgeSelection(0, step);
+    if (event.key === 'ArrowLeft') nudgeSelection(-step, 0);
+    if (event.key === 'ArrowRight') nudgeSelection(step, 0);
+    return;
+  }
+
+  if (!isEditing && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+    if (event.key.toLowerCase() === 'v') toolbar.resetTool();
+    if (event.key.toLowerCase() === 'n') toolbar.setTool('note');
+    if (event.key.toLowerCase() === 's') toolbar.setTool('shape');
+  }
+
+  if (event.key === 'Escape') {
+    contextMenu.hide();
+  }
+});
+
+window.addEventListener('keyup', (event) => {
+  if (event.code === 'Space') {
+    state.isSpacePressed = false;
+    toolbar.refresh();
+  }
+});
+
+window.addEventListener('pagehide', () => {
+  objectEvents.commitEditing();
+  void persistCurrentDraft();
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    objectEvents.commitEditing();
+    void persistCurrentDraft();
   }
 });
 
 async function handleSave() {
   try {
     await saveCurrentBoard();
-    updateTitle();
-  } catch (err) {
-    console.error('Lỗi khi lưu:', err);
-    alert("Máy chủ từ chối lưu! Lỗi nội bộ.");
+  } catch (error) {
+    console.error('Lỗi khi lưu:', error);
+    alert('Máy chủ từ chối lưu! Lỗi nội bộ.');
   }
 }

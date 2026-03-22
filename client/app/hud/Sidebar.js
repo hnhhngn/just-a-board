@@ -46,6 +46,7 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
   let isOpen = false;
   let _currentBoardId = currentBoardId;
   let _currentIsDirty = false;
+  let _dirtyBoardIds = new Set();
 
   function updateTitleText(title) {
     titleText.textContent = title;
@@ -141,18 +142,18 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
           <span class="board-icon">
             <svg width="14" height="14"><use href="assets/icons/sprite.svg#icon-board"></use></svg>
           </span>
-          <span class="board-name" data-basename="${escapeHtml(board.name)}">${escapeHtml(board.name)}${(board.id === _currentBoardId && _currentIsDirty) ? ' *' : ''}</span>
+          <span class="board-name" data-basename="${escapeHtml(board.name)}">${escapeHtml(board.name)}${_dirtyBoardIds.has(board.id) ? ' *' : ''}</span>
         </div>
         <button class="board-delete" title="Xóa Board">
           <svg width="14" height="14"><use href="assets/icons/sprite.svg#icon-trash"></use></svg>
         </button>
       `;
 
-      item.querySelector('.board-item-info').addEventListener('click', () => {
+      item.querySelector('.board-item-info').addEventListener('click', async () => {
         if (board.id === _currentBoardId) return;
-        onBoardSelect(board.id);
+        await onBoardSelect(board.id);
         _currentBoardId = board.id;
-        refreshList();
+        await refreshList();
         closeSidebar();
       });
 
@@ -194,8 +195,17 @@ export function initSidebar({ getIndex, currentBoardId, onBoardSelect, onBoardCr
       const activeNameSpan = sidebar.querySelector('.board-item.active .board-name');
       if (activeNameSpan) {
         const base = activeNameSpan.getAttribute('data-basename');
-        if (base) activeNameSpan.textContent = isDirty ? base + ' *' : base;
+        if (base) activeNameSpan.textContent = _dirtyBoardIds.has(_currentBoardId) ? base + ' *' : base;
       }
-    }
+    },
+    setDirtyBoards(boardIds) {
+      _dirtyBoardIds = new Set(boardIds || []);
+      if (isOpen) refreshList();
+      const activeNameSpan = sidebar.querySelector('.board-item.active .board-name');
+      if (activeNameSpan) {
+        const base = activeNameSpan.getAttribute('data-basename');
+        if (base) activeNameSpan.textContent = _dirtyBoardIds.has(_currentBoardId) ? base + ' *' : base;
+      }
+    },
   };
 }
