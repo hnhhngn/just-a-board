@@ -58,9 +58,9 @@ function Read-JsonSafe($path) {
 }
 
 function Normalize-ToArray($value) {
-    if ($null -eq $value) { return [object[]]@() }
-    if ($value -is [System.Array]) { return [object[]]$value }
-    return [object[]]@($value)
+    if ($null -eq $value) { return , [object[]]@() }
+    if ($value -is [System.Array]) { return , [object[]]$value }
+    return , [object[]]@($value)
 }
 
 function Test-ClientDisconnectException($ex) {

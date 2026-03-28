@@ -6,22 +6,24 @@
     <title>Just a board</title>
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <link rel="manifest" href="manifest.json" />
-    <link rel="stylesheet" href="css/tokens.css" />
-    <link rel="stylesheet" href="css/base.css" />
-    <link rel="stylesheet" href="css/ui.css" />
-    <link rel="stylesheet" href="css/feedback.css" />
-    <link rel="stylesheet" href="css/widgets.css" />
-    <link rel="stylesheet" href="css/toolbar.css" />
-    <link rel="stylesheet" href="css/sidebar.css" />
-    <link rel="stylesheet" href="css/bottombar.css" />
-    <link rel="stylesheet" href="css/objectlist.css" />
-    <link rel="stylesheet" href="css/interactions.css" />
+    <!-- Core Styles -->
+    <link rel="stylesheet" href="css/core/tokens.css" />
+    <link rel="stylesheet" href="css/core/base.css" />
+    <link rel="stylesheet" href="css/core/interactions.css" />
+    <!-- Component Styles -->
+    <link rel="stylesheet" href="css/components/ui.css" />
+    <link rel="stylesheet" href="css/components/feedback.css" />
+    <link rel="stylesheet" href="css/components/widgets.css" />
+    <link rel="stylesheet" href="css/components/toolbar.css" />
+    <link rel="stylesheet" href="css/components/sidebar.css" />
+    <link rel="stylesheet" href="css/components/bottombar.css" />
+    <link rel="stylesheet" href="css/components/objectlist.css" />
   </head>
 
   <body>
     <div id="viewport">
       <div id="world"></div>
     </div>
-    <script type="module" src="app/main.js"></script>
+    <script type="module" src="src/index.js"></script>
   </body>
 </html>
