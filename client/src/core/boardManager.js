@@ -1,6 +1,7 @@
 import { state } from './state.js';
-import { deserialize, serializeDraft, serializeForSave } from '../services/storage/BoardSerializer.js';
-import { clearDraft, listDirtyBoardIds, loadDraft, saveDraft } from '../services/storage/DraftStore.js';
+import { deserialize, extractDraftData, serializeForSave } from '../services/storage/BoardSerializer.js';
+import { clearDraft, listDirtyBoardIds, loadDraft } from '../services/storage/DraftStore.js';
+import { persistDraftViaWorker, clearDraftViaWorker } from '../services/storage/DraftWorkerClient.js';
 import { getIndex, create, remove, save, load, rename } from '../services/storage/index.js';
 import { clearGrid } from './grid.js';
 import { clearObjects, insertObjects } from './layerManager.js';
@@ -46,17 +47,6 @@ export function refreshDirtyBoards() {
   if (_deps.bottomBar?.setDirtyIndicator) _deps.bottomBar.setDirtyIndicator(state.hasUnsavedChanges);
 }
 
-function collectDraftAssetIds(snapshot) {
-  try {
-    const items = JSON.parse(snapshot);
-    return items
-      .filter((item) => item.type === 'image' && item.sourceKind === 'draft-asset' && item.assetId)
-      .map((item) => item.assetId);
-  } catch {
-    return [];
-  }
-}
-
 export function scheduleDraftPersist() {
   if (!state.currentBoardId) return;
   clearTimeout(draftPersistTimer);
@@ -73,13 +63,14 @@ export async function persistCurrentDraft() {
   if (!boardId) return;
 
   if (!state.dirtyBoardIds.has(boardId)) {
-    await clearDraft(boardId);
+    await clearDraftViaWorker(boardId);
     return;
   }
 
-  const snapshot = await serializeDraft(state.objects);
-  const assetIds = collectDraftAssetIds(snapshot);
-  await saveDraft(boardId, snapshot, assetIds);
+  // Extract data trên main thread (sync, ~1ms cho 1100 objects)
+  const dataArray = extractDraftData(state.objects);
+  // Stringify + IDB write trên Worker thread (off-main-thread)
+  await persistDraftViaWorker(boardId, dataArray);
 }
 
 export async function flushCurrentDraft() {
@@ -161,7 +152,7 @@ export async function saveCurrentBoard() {
   _deps.objectEvents.commitEditing();
   const json = await serializeForSave(state.objects);
   await save(state.currentBoardId, json);
-  await clearDraft(state.currentBoardId);
+  await clearDraftViaWorker(state.currentBoardId);
 
   transientEditDirty = false;
   state.dirtyBoardIds.delete(state.currentBoardId);

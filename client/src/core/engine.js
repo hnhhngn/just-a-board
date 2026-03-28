@@ -2,12 +2,14 @@ import { state, settings } from './state.js';
 import { getVisibleCandidates, currentlyVisibleObjects, setCurrentlyVisibleObjects } from './grid.js';
 
 let worldElement = null;
+let _onRender = null;
 
 /**
  * Khởi tạo engine với tham chiếu DOM.
  */
-export function initEngine(world) {
+export function initEngine(world, options = {}) {
   worldElement = world;
+  _onRender = options.onRender || null;
 }
 
 /**
@@ -86,32 +88,43 @@ function animate() {
   }
 }
 
+// Reuse 2 Sets — swap mỗi frame thay vì new Set() (giảm GC pressure)
+let _visibleA = new Set();
+let _visibleB = new Set();
+
 function render() {
   // Sử dụng translate3d để tối ưu GPU
   worldElement.style.transform = `translate3d(${state.currentX}px, ${state.currentY}px, 0) scale(${state.currentScale})`;
 
   // TÍNH TOÁN VÙNG NHÌN THẤY
-  const vLeft = -state.currentX / state.currentScale;
-  const vTop = -state.currentY / state.currentScale;
-  const vRight = vLeft + window.innerWidth / state.currentScale;
-  const vBottom = vTop + window.innerHeight / state.currentScale;
+  const invScale = 1 / state.currentScale;
+  const vLeft = -state.currentX * invScale;
+  const vTop = -state.currentY * invScale;
+  const vRight = vLeft + window.innerWidth * invScale;
+  const vBottom = vTop + window.innerHeight * invScale;
 
   // BUFFER (Lề)
-  const margin = 100 / state.currentScale;
+  const margin = 100 * invScale;
 
   // Lấy ứng viên từ Grid
   const visibleCandidates = getVisibleCandidates(vLeft, vTop, vRight, vBottom, margin);
 
-  const newVisibleObjects = new Set();
+  // Swap sets — reuse thay vì allocate
+  const newVisibleObjects = _visibleA.size === 0 ? _visibleA : _visibleB;
+  newVisibleObjects.clear();
+
+  const mLeft = vLeft - margin;
+  const mRight = vRight + margin;
+  const mTop = vTop - margin;
+  const mBottom = vBottom + margin;
 
   visibleCandidates.forEach((obj) => {
-    const isVisible =
-      obj.x + obj.width > vLeft - margin &&
-      obj.x < vRight + margin &&
-      obj.y + obj.height > vTop - margin &&
-      obj.y < vBottom + margin;
-
-    if (isVisible) {
+    if (
+      obj.x + obj.width > mLeft &&
+      obj.x < mRight &&
+      obj.y + obj.height > mTop &&
+      obj.y < mBottom
+    ) {
       newVisibleObjects.add(obj);
       if (!obj.isVisible) {
         obj.element.style.display = "block";
@@ -127,5 +140,14 @@ function render() {
     }
   });
 
+  // Swap references
+  if (newVisibleObjects === _visibleA) {
+    _visibleB.clear();
+  } else {
+    _visibleA.clear();
+  }
   setCurrentlyVisibleObjects(newVisibleObjects);
+
+  // Thông báo cho các hệ thống phụ thuộc (SelectionOverlay)
+  if (_onRender) _onRender();
 }

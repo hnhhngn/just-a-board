@@ -9,11 +9,18 @@
   border: 1px solid var(--color-border);
   box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
   overflow: auto;
+  contain: layout style;
 }
 
 .image-widget {
   box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
   object-fit: cover;
+  contain: layout style paint;
+}
+
+/* Ẩn box-shadow khi đang kéo thả — box-shadow paint cực kỳ nặng với images */
+.board-object.is-dragging {
+  box-shadow: none !important;
 }
 
 .shape-widget {

@@ -6,7 +6,7 @@ import { EditNoteTextCmd } from '../commands/EditNoteTextCmd.js';
 import { readClipboardContentFromEvent } from '../services/clipboard.js';
 import { getViewportCenterWorld, screenToWorld, zoomToObject } from '../utils/geometry.js';
 import { clearSelection, getPrimarySelection, getSelectedObjects, isSelected, selectOnly, setHoveredObject, setSelection, toggleSelection } from './selection.js';
-import { updateObjectInGrid } from './grid.js';
+import { updateObjectInGrid, getVisibleCandidates } from './grid.js';
 import { WidgetRegistry } from '../components/widgets/WidgetRegistry.js';
 
 let _commandManager = null;
@@ -32,13 +32,34 @@ function getNormalizedClientRect(x1, y1, x2, y2) {
   };
 }
 
-function intersectsClientRect(a, b) {
-  return !(
-    a.right < b.left ||
-    a.left > b.right ||
-    a.bottom < b.top ||
-    a.top > b.bottom
-  );
+/**
+ * Lấy danh sách objects nằm trong marquee bằng spatial grid.
+ * Chuyển client rect → world coords, rồi query grid thay vì getBoundingClientRect().
+ */
+function getObjectsInMarquee(marqueeClientRect) {
+  const topLeft = screenToWorld(marqueeClientRect.left, marqueeClientRect.top);
+  const bottomRight = screenToWorld(marqueeClientRect.right, marqueeClientRect.bottom);
+
+  const wLeft = Math.min(topLeft.x, bottomRight.x);
+  const wTop = Math.min(topLeft.y, bottomRight.y);
+  const wRight = Math.max(topLeft.x, bottomRight.x);
+  const wBottom = Math.max(topLeft.y, bottomRight.y);
+
+  const candidates = getVisibleCandidates(wLeft, wTop, wRight, wBottom, 0);
+  const hits = [];
+
+  candidates.forEach((obj) => {
+    if (
+      obj.x + obj.width > wLeft &&
+      obj.x < wRight &&
+      obj.y + obj.height > wTop &&
+      obj.y < wBottom
+    ) {
+      hits.push(obj);
+    }
+  });
+
+  return hits;
 }
 
 function notifyEditDirty(isDirty) {
@@ -53,6 +74,8 @@ function endEditingSession({ cancel = false } = {}) {
   state.editingObject = null;
   session.note.disableEditing();
 
+  // Sync text từ DOM → data trước khi đọc
+  session.note.syncTextFromDOM();
   const nextText = session.note.getText();
   const changed = nextText !== session.initialText;
 
@@ -211,12 +234,22 @@ export function initObjectEvents(viewport, world, commandManager, callbacks = {}
     const dx = (event.clientX - _dragSession.startClientX) / state.currentScale;
     const dy = (event.clientY - _dragSession.startClientY) / state.currentScale;
     if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+      if (!_dragSession.moved) {
+        // Lần đầu di chuyển: thêm is-dragging (ẩn box-shadow → giảm paint cost)
+        _dragSession.beforeEntries.forEach((entry) => {
+          entry.obj.element.classList.add('is-dragging');
+        });
+      }
       _dragSession.moved = true;
       state.isDraggingSelection = true;
     }
 
     _dragSession.beforeEntries.forEach((entry) => {
-      entry.obj.setPosition(entry.x + dx, entry.y + dy);
+      // Cập nhật data position (cho grid + overlay + serialization)
+      entry.obj.x = entry.x + dx;
+      entry.obj.y = entry.y + dy;
+      // Visual: dùng transform (Composite-only, skip Layout+Paint)
+      entry.obj.setDragOffset(dx, dy);
       updateObjectInGrid(entry.obj);
     });
     wakeUp();
@@ -239,10 +272,18 @@ export function initObjectEvents(viewport, world, commandManager, callbacks = {}
       width: rect.width,
       height: rect.height,
     };
+    if (_callbacks?.onMarqueeUpdate) _callbacks.onMarqueeUpdate();
   });
 
   window.addEventListener('mouseup', () => {
     if (!_dragSession) return;
+
+    // Commit vị trí cuối cùng bằng left/top + xóa transform offset + xóa is-dragging
+    _dragSession.beforeEntries.forEach((entry) => {
+      entry.obj.setPosition(entry.obj.x, entry.obj.y);
+      entry.obj.clearDragOffset();
+      entry.obj.element.classList.remove('is-dragging');
+    });
 
     const afterEntries = _dragSession.beforeEntries.map((entry) => ({
       obj: entry.obj,
@@ -273,7 +314,8 @@ export function initObjectEvents(viewport, world, commandManager, callbacks = {}
         bottom: state.marqueeRect.top + state.marqueeRect.height,
       };
 
-      const hits = state.objects.filter((obj) => intersectsClientRect(marqueeBounds, obj.element.getBoundingClientRect()));
+      // Dùng spatial grid thay vì getBoundingClientRect() cho tất cả objects
+      const hits = getObjectsInMarquee(marqueeBounds);
       const nextSelection = _marqueeSession.ctrlKey
         ? [...new Set([..._marqueeSession.beforeSelection, ...hits])]
         : hits;
@@ -340,6 +382,8 @@ export function initObjectEvents(viewport, world, commandManager, callbacks = {}
     const objectEl = event.target.closest('.board-object');
     const obj = objectEl?.__data || null;
     if (!obj || obj !== state.editingObject) return;
+    // Sync text từ DOM → data khi user đang gõ
+    obj.syncTextFromDOM?.();
     notifyEditDirty(obj.getText() !== _editSession?.initialText);
     if (_callbacks?.onEditingInput) _callbacks.onEditingInput();
   });

@@ -46,13 +46,28 @@ export class BaseWidget {
   }
 
   /**
-   * Đặt vị trí widget trong World.
+   * Đặt vị trí widget trong World (write style.left/top — triggers Layout).
    */
   setPosition(x, y) {
     this.x = x;
     this.y = y;
     this.element.style.left = `${x}px`;
     this.element.style.top = `${y}px`;
+  }
+
+  /**
+   * Di chuyển visual bằng CSS transform — CHỈ trigger Composite (skip Layout+Paint).
+   * Dùng trong lúc drag để tránh repaint 50 vùng khác nhau mỗi frame.
+   */
+  setDragOffset(dx, dy) {
+    this.element.style.transform = `translate(${dx}px, ${dy}px)`;
+  }
+
+  /**
+   * Xóa drag offset và commit vị trí cuối cùng bằng left/top.
+   */
+  clearDragOffset() {
+    this.element.style.transform = '';
   }
 
   setSize(width, height) {

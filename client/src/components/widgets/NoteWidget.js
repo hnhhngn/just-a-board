@@ -3,7 +3,9 @@ import { BaseWidget } from './BaseWidget.js';
 export class NoteWidget extends BaseWidget {
   constructor(x, y, text = 'Ghi chú mới...', width = 200, height = 100) {
     super('note', x, y, width, height);
-    this.setText(text);
+    /** @private Data field — source of truth cho text content */
+    this._text = text;
+    this.element.innerText = text;
     this.disableEditing();
   }
 
@@ -16,12 +18,29 @@ export class NoteWidget extends BaseWidget {
     return el;
   }
 
+  /**
+   * Đọc text từ DATA (pure, không cần DOM).
+   * Worker-safe, serialize-safe.
+   */
   getText() {
-    return this.element.innerText;
+    return this._text;
   }
 
+  /**
+   * Ghi text vào DATA + sync sang DOM.
+   * Dùng cho programmatic set (undo/redo, deserialize, paste).
+   */
   setText(text) {
+    this._text = text;
     this.element.innerText = text;
+  }
+
+  /**
+   * Sync text từ DOM → DATA.
+   * GỌI KHI: user kết thúc contentEditable editing hoặc cần đọc text mới nhất.
+   */
+  syncTextFromDOM() {
+    this._text = this.element.innerText;
   }
 
   enableEditing() {
@@ -48,21 +67,21 @@ export class NoteWidget extends BaseWidget {
   async serializeDraft() {
     return {
       ...this.serializeBase(),
-      text: this.getText(),
+      text: this._text,
     };
   }
 
   async serializeForSave() {
     return {
       ...this.serializeBase(),
-      text: this.getText(),
+      text: this._text,
     };
   }
 
   async serializeForClipboard() {
     return {
       ...this.serializeBase(),
-      text: this.getText(),
+      text: this._text,
     };
   }
 }

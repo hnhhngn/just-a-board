@@ -30,12 +30,12 @@ html {
   background-size: 40px 40px;
   transform-origin: 0 0;
   will-change: transform;
+  contain: layout style;
 }
 
 /* --- Widget chung --- */
 .board-object {
   position: absolute;
-  will-change: transform;
 }
 
 /* --- Cursor Modes --- */

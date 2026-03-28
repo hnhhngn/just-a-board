@@ -25,7 +25,7 @@ import { clearDraft } from './services/storage/DraftStore.js';
 
 import { initKeyboardShortcuts } from './core/keyboardShortcuts.js';
 
-import { clearSelection, getSelectedObjects, setSelection } from './core/selection.js';
+import { clearSelection, getSelectedObjects, setSelection, onSelectionChange } from './core/selection.js';
 import { BatchDeleteCmd } from './commands/BatchDeleteCmd.js';
 import { BatchMoveCmd } from './commands/BatchMoveCmd.js';
 import { InsertObjectsCmd } from './commands/InsertObjectsCmd.js';
@@ -61,11 +61,18 @@ export async function bootstrap() {
   const viewport = document.getElementById('viewport');
   const world = document.getElementById('world');
 
-  initEngine(world);
+  let selectionOverlay = null;
+
+  initEngine(world, {
+    onRender: () => selectionOverlay?.invalidate(),
+  });
   initObjectStore(world);
   applyTooltips(document.body);
   initConfirmHost();
   initNotificationsHost();
+
+  // Đăng ký selection change callback → invalidate overlay
+  onSelectionChange(() => selectionOverlay?.invalidate());
 
   let objectList = null;
 
@@ -80,7 +87,7 @@ export async function bootstrap() {
   const bottomBar = initBottomBar({ onSave: handleSave });
   objectList = initObjectList();
   const contextMenu = initContextMenu();
-  initSelectionOverlay(commandManager);
+  selectionOverlay = initSelectionOverlay(commandManager);
 
   // Setup inter-dependencies for actions
   function deleteSelection() {
@@ -227,6 +234,9 @@ export async function bootstrap() {
     },
     onPasteContent: async (content, anchorPoint, source) => {
       await pasteClipboardContent(content, anchorPoint, source);
+    },
+    onMarqueeUpdate: () => {
+      selectionOverlay?.invalidate();
     },
   });
 

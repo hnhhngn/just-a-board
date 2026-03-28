@@ -31,13 +31,16 @@ function getObjectRect(obj) {
   };
 }
 
+/**
+ * Tính screen rect từ world coords — KHÔNG gọi getBoundingClientRect().
+ * Loại bỏ hoàn toàn forced reflow khi drag nhiều objects.
+ */
 function getElementScreenRect(obj) {
-  const rect = obj.element.getBoundingClientRect();
   return {
-    left: rect.left,
-    top: rect.top,
-    width: rect.width,
-    height: rect.height,
+    left: obj.x * state.currentScale + state.currentX,
+    top: obj.y * state.currentScale + state.currentY,
+    width: obj.width * state.currentScale,
+    height: obj.height * state.currentScale,
   };
 }
 
@@ -62,6 +65,20 @@ export function initSelectionOverlay(commandManager) {
   const multiBoxes = new Map();
 
   let resizeSession = null;
+  let _rafId = null;
+
+  // --- EVENT-DRIVEN RENDER ---
+
+  /**
+   * Schedule một render frame — coalesce nhiều lần gọi trong cùng 1 frame.
+   */
+  function scheduleRender() {
+    if (_rafId !== null) return;
+    _rafId = requestAnimationFrame(() => {
+      _rafId = null;
+      render();
+    });
+  }
 
   function setDisplay(target, display) {
     if (target.style.display !== display) {
@@ -117,7 +134,7 @@ export function initSelectionOverlay(commandManager) {
     });
   }
 
-  function syncMultiBoxes(selected, canResize) {
+  function syncMultiBoxes(selected, canResize, objectIndexMap) {
     const selectedSet = new Set(selected);
 
     multiBoxes.forEach((multiBox, obj) => {
@@ -135,7 +152,7 @@ export function initSelectionOverlay(commandManager) {
       }
 
       const rect = getElementScreenRect(obj);
-      const objectIndex = state.objects.indexOf(obj);
+      const objectIndex = objectIndexMap.get(obj) ?? -1;
 
       multiBox.classList.toggle('resizable', canResize);
       multiBox.classList.toggle('dragging', state.isDraggingSelection);
@@ -167,7 +184,6 @@ export function initSelectionOverlay(commandManager) {
       overlay.classList.remove('visible');
       clearMultiBoxes();
       hideBox(box);
-      requestAnimationFrame(render);
       return;
     }
 
@@ -185,9 +201,12 @@ export function initSelectionOverlay(commandManager) {
         showBox(hoverBox, getElementScreenRect(hovered));
       }
 
-      requestAnimationFrame(render);
       return;
     }
+
+    // Build index map một lần — thay vì gọi indexOf O(n) nhiều lần
+    const objectIndexMap = new Map();
+    state.objects.forEach((obj, i) => objectIndexMap.set(obj, i));
 
     if (selected.length === 1) {
       const normalizedPrimary = primary && selected.includes(primary) ? primary : selected[0];
@@ -195,12 +214,11 @@ export function initSelectionOverlay(commandManager) {
         overlay.classList.remove('visible');
         boxesLayer.innerHTML = '';
         hideBox(box);
-        requestAnimationFrame(render);
         return;
       }
 
       const screen = getElementScreenRect(normalizedPrimary);
-      const objectIndex = state.objects.indexOf(normalizedPrimary);
+      const objectIndex = objectIndexMap.get(normalizedPrimary) ?? -1;
 
       clearMultiBoxes();
       showBox(box, screen);
@@ -212,7 +230,6 @@ export function initSelectionOverlay(commandManager) {
         handle.style.display = canResize ? 'block' : 'none';
       });
 
-      requestAnimationFrame(render);
       return;
     }
 
@@ -223,9 +240,7 @@ export function initSelectionOverlay(commandManager) {
       handle.dataset.objectIndex = '';
       handle.style.display = 'none';
     });
-    syncMultiBoxes(selected, canResize);
-
-    requestAnimationFrame(render);
+    syncMultiBoxes(selected, canResize, objectIndexMap);
   }
 
   function applyResize(handleName, dx, dy) {
@@ -312,10 +327,20 @@ export function initSelectionOverlay(commandManager) {
     resizeSession = null;
   });
 
-  requestAnimationFrame(render);
+  // Render ban đầu
+  scheduleRender();
 
   return {
+    /**
+     * Yêu cầu overlay render lại frame tiếp theo.
+     * Gọi từ: engine (pan/zoom), selection changes, drag, marquee.
+     */
+    invalidate() {
+      scheduleRender();
+    },
+
     destroy() {
+      if (_rafId !== null) cancelAnimationFrame(_rafId);
       overlay.remove();
     },
   };

@@ -2,11 +2,19 @@ import { state } from './state.js';
 
 // --- SPATIAL GRID PARTITIONING ---
 const GRID_SIZE = 500;
-const spatialGrid = new Map(); // "x,y" => Set of objects
+const spatialGrid = new Map(); // cellKey (number) => Set of objects
 export let currentlyVisibleObjects = new Set();
 
 export function setCurrentlyVisibleObjects(newSet) {
   currentlyVisibleObjects = newSet;
+}
+
+/**
+ * Mã hóa cell (x, y) thành một số duy nhất — nhanh hơn string concatenation.
+ * Dùng Cantor-variant: shift x 16 bit rồi OR với y (hỗ trợ ±32767).
+ */
+function encodeCellKey(cx, cy) {
+  return ((cx + 32768) << 16) | (cy + 32768);
 }
 
 function getGridCells(obj) {
@@ -15,9 +23,9 @@ function getGridCells(obj) {
   const minY = Math.floor(obj.y / GRID_SIZE);
   const maxY = Math.floor((obj.y + obj.height) / GRID_SIZE);
   const cells = [];
-  for (let x = minX; x <= Math.max(minX, maxX); x++) {
-    for (let y = minY; y <= Math.max(minY, maxY); y++) {
-      cells.push(`${x},${y}`);
+  for (let cx = minX; cx <= maxX; cx++) {
+    for (let cy = minY; cy <= maxY; cy++) {
+      cells.push(encodeCellKey(cx, cy));
     }
   }
   return cells;
@@ -25,26 +33,48 @@ function getGridCells(obj) {
 
 export function addObjectToGrid(obj) {
   obj.gridCells = getGridCells(obj);
-  obj.gridCells.forEach((cellId) => {
-    if (!spatialGrid.has(cellId)) spatialGrid.set(cellId, new Set());
-    spatialGrid.get(cellId).add(obj);
-  });
+  for (let i = 0; i < obj.gridCells.length; i++) {
+    const key = obj.gridCells[i];
+    let cell = spatialGrid.get(key);
+    if (!cell) {
+      cell = new Set();
+      spatialGrid.set(key, cell);
+    }
+    cell.add(obj);
+  }
 }
 
 export function removeObjectFromGrid(obj) {
   if (!obj.gridCells) return;
-  obj.gridCells.forEach((cellId) => {
-    if (spatialGrid.has(cellId)) spatialGrid.get(cellId).delete(obj);
-  });
+  for (let i = 0; i < obj.gridCells.length; i++) {
+    const cell = spatialGrid.get(obj.gridCells[i]);
+    if (cell) cell.delete(obj);
+  }
 }
 
 export function updateObjectInGrid(obj) {
   const newCells = getGridCells(obj);
-  const oldCellsStr = obj.gridCells ? obj.gridCells.join("|") : "";
-  const newCellsStr = newCells.join("|");
-  if (oldCellsStr !== newCellsStr) {
-    removeObjectFromGrid(obj);
-    addObjectToGrid(obj);
+
+  // So sánh nhanh: cùng số lượng cells và cùng giá trị → không cần update
+  const old = obj.gridCells;
+  if (old && old.length === newCells.length) {
+    let same = true;
+    for (let i = 0; i < old.length; i++) {
+      if (old[i] !== newCells[i]) { same = false; break; }
+    }
+    if (same) return;
+  }
+
+  removeObjectFromGrid(obj);
+  obj.gridCells = newCells;
+  for (let i = 0; i < newCells.length; i++) {
+    const key = newCells[i];
+    let cell = spatialGrid.get(key);
+    if (!cell) {
+      cell = new Set();
+      spatialGrid.set(key, cell);
+    }
+    cell.add(obj);
   }
 }
 
@@ -58,11 +88,11 @@ export function getVisibleCandidates(vLeft, vTop, vRight, vBottom, margin) {
   const maxCellY = Math.floor((vBottom + margin) / GRID_SIZE);
 
   const candidates = new Set();
-  for (let x = minCellX; x <= maxCellX; x++) {
-    for (let y = minCellY; y <= maxCellY; y++) {
-      const cellId = `${x},${y}`;
-      if (spatialGrid.has(cellId)) {
-        spatialGrid.get(cellId).forEach(obj => candidates.add(obj));
+  for (let cx = minCellX; cx <= maxCellX; cx++) {
+    for (let cy = minCellY; cy <= maxCellY; cy++) {
+      const cell = spatialGrid.get(encodeCellKey(cx, cy));
+      if (cell) {
+        cell.forEach(obj => candidates.add(obj));
       }
     }
   }

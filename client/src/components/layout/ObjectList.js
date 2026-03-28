@@ -67,6 +67,9 @@ export function initObjectList() {
     const objects = state.objects;
     countEl.textContent = objects.length;
 
+    // Chỉ render danh sách khi panel đang mở
+    if (!isOpen) return;
+
     if (objects.length === 0) {
       itemsEl.innerHTML = `<div class="objlist-empty">Chưa có object nào</div>`;
       return;
@@ -98,9 +101,9 @@ export function initObjectList() {
 
   function getLabel(obj, index) {
     const prefix = TYPE_LABELS[obj.type] || obj.type;
-    // Nếu là note có text → lấy text snippet
-    if (obj.type === 'note' && obj.element) {
-      const text = obj.element.textContent?.trim();
+    // Đọc text từ DATA layer thay vì DOM
+    if (obj.type === 'note' && typeof obj.getText === 'function') {
+      const text = obj.getText()?.trim();
       if (text) return escapeHtml(text.substring(0, 30)) + (text.length > 30 ? '…' : '');
     }
     return `${prefix} ${index + 1}`;
@@ -109,22 +112,6 @@ export function initObjectList() {
   function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
-
-  // --- Tự động cập nhật count qua polling nhẹ ---
-  let lastCount = -1;
-  let lastVersion = -1;
-  function loop() {
-    const count = state.objects.length;
-    const version = state.objectsVersion;
-    if (count !== lastCount || version !== lastVersion) {
-      countEl.textContent = count;
-      lastCount = count;
-       lastVersion = version;
-      if (isOpen) refresh();
-    }
-    requestAnimationFrame(loop);
-  }
-  loop();
 
   return { refresh };
 }

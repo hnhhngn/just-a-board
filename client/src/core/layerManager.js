@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { wakeUp } from './engine.js';
 import { addObjectToGrid, removeObjectFromGrid, updateObjectInGrid, currentlyVisibleObjects } from './grid.js';
-import { refreshSelectionStyles } from './selection.js';
+import { refreshSelectionStyles, invalidateSelectionCache } from './selection.js';
 
 let _world = null;
 
@@ -13,10 +13,14 @@ function ensureWorld() {
   if (!_world) throw new Error('Object store chưa được khởi tạo world');
 }
 
-export function syncObjectOrder() {
-  state.objects.forEach((obj, index) => {
-    obj.element.style.zIndex = String(index + 1);
-  });
+/**
+ * Đồng bộ zIndex cho objects trong mảng.
+ * startIndex cho phép chỉ reindex từ vị trí đó trở đi (khi append vào cuối).
+ */
+export function syncObjectOrder(startIndex = 0) {
+  for (let i = startIndex; i < state.objects.length; i++) {
+    state.objects[i].element.style.zIndex = String(i + 1);
+  }
   state.objectsVersion += 1;
 }
 
@@ -38,8 +42,11 @@ export function insertObjects(objects, index = state.objects.length) {
     currentlyVisibleObjects.add(obj);
   });
 
-  syncObjectOrder();
-  refreshSelectionStyles();
+  // Chỉ reindex từ safeIndex trở đi thay vì toàn bộ
+  syncObjectOrder(safeIndex);
+  invalidateSelectionCache();
+  // Chỉ refresh styles cho objects mới thêm
+  refreshSelectionStyles(list);
   wakeUp();
 }
 
@@ -57,6 +64,7 @@ export function restoreObjectEntries(entries) {
   });
 
   syncObjectOrder();
+  invalidateSelectionCache();
   refreshSelectionStyles();
   wakeUp();
 }
@@ -87,6 +95,7 @@ export function removeObjects(objects) {
   }
 
   syncObjectOrder();
+  invalidateSelectionCache();
   refreshSelectionStyles();
   wakeUp();
   return entries;
@@ -102,6 +111,7 @@ export function setObjectOrder(order) {
   state.objects.length = 0;
   state.objects.push(...order);
   syncObjectOrder();
+  invalidateSelectionCache();
   refreshSelectionStyles();
   wakeUp();
 }
